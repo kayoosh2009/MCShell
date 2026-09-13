@@ -10,19 +10,17 @@ export component OutlinedText inherits Rectangle {
     width: label.width;
     height: label.height;
 
-    // Обводка: 8 копий текста, сдвинутых по кругу на 1px
-    for dx in [-1, 0, 1] : Text {
-        for dy in [-1, 0, 1] : Text {
-            text: root.text;
-            font-family: "Monocraft";
-            font-size: root.font-size;
-            color: root.outline-color;
-            x: dx * 1px;
-            y: dy * 1px;
-        }
-    }
+    // 8 копий текста по кругу — имитация обводки
+    Text { text: root.text; font-family: "Monocraft"; font-size: root.font-size; color: root.outline-color; x: -1px; y: -1px; }
+    Text { text: root.text; font-family: "Monocraft"; font-size: root.font-size; color: root.outline-color; x: 0px;  y: -1px; }
+    Text { text: root.text; font-family: "Monocraft"; font-size: root.font-size; color: root.outline-color; x: 1px;  y: -1px; }
+    Text { text: root.text; font-family: "Monocraft"; font-size: root.font-size; color: root.outline-color; x: -1px; y: 0px;  }
+    Text { text: root.text; font-family: "Monocraft"; font-size: root.font-size; color: root.outline-color; x: 1px;  y: 0px;  }
+    Text { text: root.text; font-family: "Monocraft"; font-size: root.font-size; color: root.outline-color; x: -1px; y: 1px;  }
+    Text { text: root.text; font-family: "Monocraft"; font-size: root.font-size; color: root.outline-color; x: 0px;  y: 1px;  }
+    Text { text: root.text; font-family: "Monocraft"; font-size: root.font-size; color: root.outline-color; x: 1px;  y: 1px;  }
 
-    // Основной текст сверху, без сдвига
+    // Основной текст сверху
     label := Text {
         text: root.text;
         font-family: "Monocraft";
