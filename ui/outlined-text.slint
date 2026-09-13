@@ -1,0 +1,32 @@
+import "fonts/Monocraft.otf";
+import { Palette } from "palette.slint";
+
+export component OutlinedText inherits Rectangle {
+    in property <string> text;
+    in property <length> font-size: 24px;
+    in property <color> text-color: Palette.text-primary;
+    in property <color> outline-color: Palette.accent;
+
+    width: label.width;
+    height: label.height;
+
+    // Обводка: 8 копий текста, сдвинутых по кругу на 1px
+    for dx in [-1, 0, 1] : Text {
+        for dy in [-1, 0, 1] : Text {
+            text: root.text;
+            font-family: "Monocraft";
+            font-size: root.font-size;
+            color: root.outline-color;
+            x: dx * 1px;
+            y: dy * 1px;
+        }
+    }
+
+    // Основной текст сверху, без сдвига
+    label := Text {
+        text: root.text;
+        font-family: "Monocraft";
+        font-size: root.font-size;
+        color: root.text-color;
+    }
+}
