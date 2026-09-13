@@ -1,0 +1,21 @@
+import { Button, VerticalBox } from "std-widgets.slint";
+
+export component MainWindow inherits Window {
+    title: "MCShell";
+    width: 800px;
+    height: 500px;
+    background: #1e1e1e;
+
+    VerticalBox {
+        alignment: center;
+        Text {
+            text: "MCShell";
+            font-size: 32px;
+            color: white;
+            horizontal-alignment: center;
+        }
+        Button {
+            text: "Играть";
+        }
+    }
+}
