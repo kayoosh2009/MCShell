@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Minecraft Launcher PoC</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="card">
+    <h2>Minecraft Launcher</h2>
+    
+    <div class="form-group">
+      <label for="nickname">Никнейм</label>
+      <input type="text" id="nickname" placeholder="Steve" value="Steve" />
+    </div>
+
+    <div class="form-group">
+      <label for="version">Версия</label>
+      <input type="text" id="version" placeholder="1.20.1" value="1.20.1" />
+    </div>
+
+    <div class="form-group">
+      <label for="skin">Скин (.png)</label>
+      <input type="file" id="skin" accept=".png" />
+    </div>
+
+    <button id="launch-btn">Играть</button>
+    <div id="status" class="status"></div>
+  </div>
+
+  <script>
+    const { invoke } = window.__TAURI__.tauri;
+
+    document.getElementById('launch-btn').addEventListener('click', async () => {
+      const nickname = document.getElementById('nickname').value;
+      const version = document.getElementById('version').value;
+      const statusEl = document.getElementById('status');
+
+      statusEl.textContent = 'Запуск...';
+      statusEl.className = 'status';
+
+      // Дефолтные пути для теста (подставь свои при необходимости)
+      // Windows: C:/Users/ИМЯ/AppData/Roaming/.minecraft
+      // Linux: /home/ИМЯ/.minecraft
+      const gameDir = 'C:/Users/User/AppData/Roaming/.minecraft'; 
+      const javaPath = 'java'; // Название команды или полный путь к java.exe
+
+      try {
+        const response = await invoke('launch_game', {
+          nickname,
+          version,
+          gameDir,
+          javaPath
+        });
+        statusEl.textContent = response;
+        statusEl.classList.add('success');
+      } catch (err) {
+        statusEl.textContent = err;
+        statusEl.classList.add('error');
+      }
+    });
+  </script>
+</body>
+</html>
