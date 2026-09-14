@@ -7,6 +7,10 @@ edition = "2021"
 tauri-build = "1.5"
 
 [dependencies]
-tauri = { version = "1.5", features = ["shell-open"] }
+tauri = { version = "1.5", features = ["shell-open", "protocol-asset"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
+
+# Принудительно задаем использование libsoup3
+[target.'cfg(target_os = "linux")'.dependencies]
+libsoup3 = "0.2"
