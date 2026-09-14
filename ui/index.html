@@ -36,15 +36,15 @@
       const nickname = document.getElementById('nickname').value;
       const version = document.getElementById('version').value;
       const statusEl = document.getElementById('status');
-
+    
       statusEl.textContent = 'Запуск...';
       statusEl.className = 'status';
 
       // Дефолтные пути для теста (подставь свои при необходимости)
       // Windows: C:/Users/ИМЯ/AppData/Roaming/.minecraft
       // Linux: /home/ИМЯ/.minecraft
-      const gameDir = 'C:/Users/User/AppData/Roaming/.minecraft'; 
-      const javaPath = 'java'; // Название команды или полный путь к java.exe
+        const gameDir = '~/.minecraft'; 
+        const javaPath = 'java'; // Будет использовать системную Java из /usr/bin/java
 
       try {
         const response = await invoke('launch_game', {
