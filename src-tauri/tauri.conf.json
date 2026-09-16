@@ -2,12 +2,9 @@
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "MCShell",
   "version": "0.1.0",
-  "identifier": "com.tauri.dev",
+  "identifier": "com.kayoosh.mcshell",
   "build": {
-    "frontendDist": "../ui",
-    "devUrl": "../ui",
-    "beforeDevCommand": "npm run dev",
-    "beforeBuildCommand": "npm run build"
+    "frontendDist": "../ui"
   },
   "app": {
     "windows": [
