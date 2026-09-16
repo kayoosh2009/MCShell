@@ -30,7 +30,7 @@
   </div>
 
   <script>
-    const { invoke } = window.__TAURI__.tauri;
+    const { invoke } = window.__TAURI__.core;
 
     document.getElementById('launch-btn').addEventListener('click', async () => {
       const nickname = document.getElementById('nickname').value;
