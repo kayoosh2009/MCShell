@@ -11,8 +11,8 @@
       {
         "title": "Minecraft Launcher",
         "width": 800,
-        "height": 600,
-        "resizable": true,
+        "height": 720,
+        "resizable": false,
         "fullscreen": false
       }
     ],
