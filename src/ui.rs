@@ -45,10 +45,39 @@ pub fn draw(f: &mut Frame, app: &App) {
             lines.join("\n")
         }
         Tab::Mods => "Mod list, toggle and remove will show here.".to_string(),
-        Tab::Skins => format!(
-            "Skin: {}\n\ndrop a PNG file on the terminal window to set it",
-            if app.has_skin { "set" } else { "not set" }
-        ),
+        Tab::Skins => {
+            // Сначала получаем текст
+            let text = format!(
+                "Skin: {}\n\ndrop a PNG file on the terminal window to set it",
+                if app.has_skin { "set" } else { "not set" }
+            );
+            
+            // Если есть скин — делим экран
+            if app.has_skin {
+                let inner = Layout::default()
+                    .direction(Direction::Horizontal)
+                    .constraints([Constraint::Percentage(40), Constraint::Percentage(60)])
+                    .split(chunks[1]);
+                
+                // Текст слева
+                f.render_widget(
+                    Paragraph::new(text.clone()).block(Block::default().borders(Borders::ALL).title(title)),
+                    inner[0]
+                );
+                
+                // Превью справа
+                if let Ok(img) = image::open(crate::paths::skin_file()) {
+                    let lines = crate::skin_view::skin_to_lines(&img, 32, 32);
+                    f.render_widget(
+                        Paragraph::new(lines).block(Block::default().borders(Borders::ALL).title("Skin preview")),
+                        inner[1]
+                    );
+                }
+                return; // выходим, чтобы не рисовать текст дважды
+            }
+            
+            text  // возвращаем текст для обычного рендеринга (если нет скина)
+        },
         Tab::Worlds => "World list, export and import will show here.".to_string(),
         Tab::Launch => {
             let mut lines = vec!["up/down: select, enter: launch".to_string(), String::new()];
