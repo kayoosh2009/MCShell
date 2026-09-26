@@ -15,14 +15,15 @@ pub fn skin_to_lines(img: &image::DynamicImage, width: u32, height: u32) -> Vec<
             let top = resized.get_pixel(x, y);
             let bot = resized.get_pixel(x, y + 1);
 
-            // Функция для конвертации RGBA в Color, учитывая прозрачность
-            let to_color = |p: image::Rgba<u8>| -> Color {
-                if p[3] < 128 {
-                    Color::Reset // Прозрачный пиксель (оставляет фон терминала)
-                } else {
-                    Color::Rgb(p[0], p[1], p[2])
-                }
-            };
+                // Найди функцию to_color внутри skin_to_lines
+                let to_color = |p: image::Rgba<u8>| -> Color {
+                    if p[3] < 128 {
+                        // Вместо Color::Reset используем чёрный (или цвет фона терминала)
+                        Color::Rgb(30, 30, 30)  // тёмно-серый, как фон большинства терминалов
+                    } else {
+                        Color::Rgb(p[0], p[1], p[2])
+                    }
+                };
 
             spans.push(Span::styled("▀", Style::new().fg(to_color(top)).bg(to_color(bot))));
         }

@@ -17,7 +17,6 @@ use crossterm::execute;
 use crossterm::terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen};
 use ratatui::backend::CrosstermBackend;
 use ratatui::Terminal;
-use crate::skin_view;
 
 fn main() -> Result<()> {
     enable_raw_mode()?;

@@ -20,6 +20,8 @@ pub fn draw(f: &mut Frame, app: &App) {
     f.render_widget(tabs, chunks[0]);
 
     let title = app.current_tab.title();
+    
+    // 1. Сначала просто получаем текст для любой вкладки
     let text = match app.current_tab {
         Tab::Profile => match app.input_mode {
             InputMode::EditingUsername => format!("New username: {}_", app.input_buffer),
@@ -43,36 +45,10 @@ pub fn draw(f: &mut Frame, app: &App) {
             lines.join("\n")
         }
         Tab::Mods => "Mod list, toggle and remove will show here.".to_string(),
-        Tab::Skins => {
-            let text = format!(
-                "Skin: {}\n\ndrop a PNG file on the terminal window to set it",
-                if app.has_skin { "set" } else { "not set" }
-            );
-            
-            let body = Paragraph::new(text).block(Block::default().borders(Borders::ALL).title(title));
-            f.render_widget(body, chunks[1]);
-            
-            if app.has_skin {
-                if let Ok(img) = image::open(crate::paths::skin_file()) {
-                    let lines = skin_view::skin_to_lines(&img, 32, 32);
-                    let preview = Paragraph::new(lines)
-                        .block(Block::default().borders(Borders::ALL).title("Skin preview"));
-                    
-                    // Размещаем превью в правой части экрана
-                    let preview_area = ratatui::layout::Layout::default()
-                        .direction(ratatui::layout::Direction::Horizontal)
-                        .constraints([
-                            ratatui::layout::Constraint::Percentage(50),
-                            ratatui::layout::Constraint::Percentage(50),
-                        ])
-                        .split(chunks[1])[1];
-                    
-                    f.render_widget(preview, preview_area);
-                }
-            }
-            
-            return; // Пропускаем общий рендеринг body ниже
-        },
+        Tab::Skins => format!(
+            "Skin: {}\n\ndrop a PNG file on the terminal window to set it",
+            if app.has_skin { "set" } else { "not set" }
+        ),
         Tab::Worlds => "World list, export and import will show here.".to_string(),
         Tab::Launch => {
             let mut lines = vec!["up/down: select, enter: launch".to_string(), String::new()];
@@ -83,8 +59,31 @@ pub fn draw(f: &mut Frame, app: &App) {
             lines.join("\n")
         }
     };
-    let body = Paragraph::new(text).block(Block::default().borders(Borders::ALL).title(title));
-    f.render_widget(body, chunks[1]);
 
+    // 2. Специальная логика отрисовки только для вкладки Skins с загруженным скином
+    if app.current_tab == Tab::Skins && app.has_skin {
+        let inner_chunks = Layout::default()
+            .direction(Direction::Horizontal)
+            .constraints([Constraint::Percentage(40), Constraint::Percentage(60)])
+            .split(chunks[1]);
+
+        // Текст слева
+        let body = Paragraph::new(text).block(Block::default().borders(Borders::ALL).title(title));
+        f.render_widget(body, inner_chunks[0]);
+
+        // Превью скина справа
+        if let Ok(img) = image::open(crate::paths::skin_file()) {
+            let lines = crate::skin_view::skin_to_lines(&img, 32, 32);
+            let preview = Paragraph::new(lines)
+                .block(Block::default().borders(Borders::ALL).title("Skin preview"));
+            f.render_widget(preview, inner_chunks[1]);
+        }
+    } else {
+        // Стандартная отрисовка для всех остальных вкладок (и для Skins без картинки)
+        let body = Paragraph::new(text).block(Block::default().borders(Borders::ALL).title(title));
+        f.render_widget(body, chunks[1]);
+    }
+
+    // 3. Статус бар рисуется ВСЕГДА, независимо от вкладки
     f.render_widget(Paragraph::new(app.status.as_str()), chunks[2]);
 }
