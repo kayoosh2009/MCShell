@@ -50,6 +50,7 @@ pub struct App {
     pub current_tab: Tab,
     pub should_quit: bool,
     pub status: String,
+    pub progress_log: Vec<String>,
     pub profile: Profile,
     pub input_mode: InputMode,
     pub input_buffer: String,
@@ -67,6 +68,7 @@ impl App {
             current_tab: Tab::Profile,
             should_quit: false,
             status: "arrows/tab: switch tabs, q: quit".to_string(),
+            progress_log: Vec::new(),
             profile: Profile::load(),
             input_mode: InputMode::Normal,
             input_buffer: String::new(),
@@ -91,6 +93,7 @@ impl App {
     }
 
     fn spawn_version_install(&mut self, id: String) {
+        self.progress_log.clear();
         let (tx, rx) = mpsc::channel();
         self.progress_rx = Some(rx);
         self.status = format!("installing {id}...");
@@ -103,6 +106,7 @@ impl App {
     }
 
     fn spawn_fabric_install(&mut self, mc_version: String) {
+        self.progress_log.clear();
         let (tx, rx) = mpsc::channel();
         self.progress_rx = Some(rx);
         self.status = format!("installing fabric for {mc_version}...");
@@ -127,7 +131,14 @@ impl App {
         if let Some(rx) = &self.progress_rx {
             loop {
                 match rx.try_recv() {
-                    Ok(msg) => self.status = msg,
+                    Ok(msg) => {
+                        self.progress_log.push(msg.clone());
+                        // Храним только последние 6 сообщений, чтобы не забивать экран
+                        if self.progress_log.len() > 6 {
+                            self.progress_log.remove(0);
+                        }
+                        self.status = msg; // для нижней строки статуса
+                    }
                     Err(TryRecvError::Empty) => break,
                     Err(TryRecvError::Disconnected) => { disconnected = true; break; }
                 }
@@ -136,6 +147,7 @@ impl App {
         if disconnected {
             self.progress_rx = None;
             self.installed = versions::installed_versions();
+            self.progress_log.push("✅ Install complete!".to_string());
         }
     }
 
@@ -165,6 +177,21 @@ impl App {
                     match self.last_vanilla.clone() {
                         Some(mc) => self.spawn_fabric_install(mc),
                         None => self.status = "install a vanilla version first".to_string(),
+                    }
+                }
+                KeyCode::Char('d') | KeyCode::Delete if self.current_tab == Tab::Launch && !self.installed.is_empty() => {
+                    let id = self.installed[self.list_index].clone();
+                    match versions::delete_version(&id) {
+                        Ok(()) => {
+                            self.status = format!("deleted {id}");
+                            self.progress_log.clear();
+                            self.installed = versions::installed_versions();
+                            // Корректируем индекс, если удалили последний элемент
+                            if self.list_index >= self.installed.len() && self.list_index > 0 {
+                                self.list_index -= 1;
+                            }
+                        }
+                        Err(e) => self.status = format!("delete error: {e}"),
                     }
                 }
                 KeyCode::Down if self.current_tab == Tab::Versions && !self.remote_versions.is_empty() => {

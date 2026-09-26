@@ -168,3 +168,11 @@ pub fn install_version(id: &str, progress: &dyn Fn(String)) -> Result<()> {
     progress(format!("{id}: install complete"));
     Ok(())
 }
+
+pub fn delete_version(id: &str) -> Result<()> {
+    let version_dir = paths::versions_dir().join(id);
+    if version_dir.exists() {
+        fs::remove_dir_all(&version_dir)?;
+    }
+    Ok(())
+}

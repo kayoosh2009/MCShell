@@ -80,7 +80,7 @@ pub fn draw(f: &mut Frame, app: &App) {
         },
         Tab::Worlds => "World list, export and import will show here.".to_string(),
         Tab::Launch => {
-            let mut lines = vec!["up/down: select, enter: launch".to_string(), String::new()];
+            let mut lines = vec!["up/down: select, enter: launch, d: delete".to_string(), String::new()]; // <-- добавлено "d: delete"
             for (i, v) in app.installed.iter().enumerate() {
                 let marker = if i == app.list_index { ">" } else { " " };
                 lines.push(format!("{marker} {v}"));
