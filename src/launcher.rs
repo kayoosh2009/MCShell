@@ -1,11 +1,10 @@
 use std::collections::HashMap;
 use std::fs;
+use std::io::Write;
 use std::path::PathBuf;
 use std::process::Command;
-
 use anyhow::{anyhow, Result};
 use serde_json::Value;
-
 use crate::paths;
 use crate::versions::library_allowed;
 
@@ -22,19 +21,21 @@ fn maven_to_path(name: &str) -> Option<PathBuf> {
     let group = parts[0].replace('.', "/");
     let artifact = parts[1];
     let version = parts[2];
-
     let filename = if parts.len() >= 4 {
         format!("{artifact}-{version}-{}.jar", parts[3])
     } else {
         format!("{artifact}-{version}.jar")
     };
-
     Some(paths::libraries_dir().join(group).join(artifact).join(version).join(filename))
 }
 
 fn library_jar_path(lib: &Value) -> Option<PathBuf> {
-    // 1. Пробуем стандартный путь Mojang через downloads.artifact.path
-    if let Some(path) = lib.get("downloads")?.get("artifact")?.get("path")?.as_str() {
+    // 1. Пробуем стандартный путь Mojang
+    if let Some(path) = lib.get("downloads")
+        .and_then(|d| d.get("artifact"))
+        .and_then(|a| a.get("path"))
+        .and_then(|p| p.as_str()) 
+    {
         return Some(paths::libraries_dir().join(path));
     }
     // 2. Если блока downloads нет (как у Fabric), парсим поле "name"
@@ -43,7 +44,12 @@ fn library_jar_path(lib: &Value) -> Option<PathBuf> {
 }
 
 fn native_jar_path(lib: &Value) -> Option<PathBuf> {
-    if let Some(path) = lib.get("downloads")?.get("classifiers")?.get("natives-linux")?.get("path")?.as_str() {
+    if let Some(path) = lib.get("downloads")
+        .and_then(|d| d.get("classifiers"))
+        .and_then(|c| c.get("natives-linux"))
+        .and_then(|n| n.get("path"))
+        .and_then(|p| p.as_str()) 
+    {
         return Some(paths::libraries_dir().join(path));
     }
     None
@@ -86,65 +92,60 @@ fn resolve(id: &str) -> Result<Resolved> {
     let parent_libs = parent_json.as_ref().and_then(|p| p.get("libraries")).and_then(|v| v.as_array()).unwrap_or(&empty);
 
     let mut classpath = Vec::new();
-    let log_path = paths::game_dir().join("debug.log");
+    
+    // Создаем файл логов для отладки resolve
+    let log_path = paths::game_dir().join("resolve_debug.log");
     let mut log = fs::File::create(&log_path)?;
-    use std::io::Write;
 
-    writeln!(log, "=== RESOLVE DEBUG ===")?;
+    writeln!(log, "=== RESOLVE DEBUG for {} ===", id)?;
+    writeln!(log, "Total own_libs: {}", own_libs.len())?;
+    writeln!(log, "Total parent_libs: {}", parent_libs.len())?;
 
     for lib in parent_libs.iter().chain(own_libs.iter()) {
-        if !library_allowed(lib) {
-            continue;
-        }
-        
         let lib_name = lib.get("name").and_then(|n| n.as_str()).unwrap_or("unknown");
         
-        // Детальная диагностика для библиотек Fabric
-        if lib_name.contains("fabricmc") || lib_name.contains("intermediary") {
-            writeln!(log, "\n=== FABRIC LIB: {} ===", lib_name)?;
-            writeln!(log, "  Has downloads: {}", lib.get("downloads").is_some())?;
-            if let Some(downloads) = lib.get("downloads") {
-                writeln!(log, "  downloads.artifact.path: {:?}", 
-                    downloads.get("artifact").and_then(|a| a.get("path")).and_then(|p| p.as_str()))?;
-            }
+        if !library_allowed(lib) {
+            writeln!(log, "[SKIP] {} (not allowed by rules)", lib_name)?;
+            continue;
         }
-        
+
         if let Some(p) = library_jar_path(lib) {
             if p.is_file() {
-                classpath.push(p);
+                classpath.push(p.clone());
+                writeln!(log, "[OK] {} -> {}", lib_name, p.display())?;
             } else {
-                writeln!(log, "  [MISSING] {} -> {}", lib_name, p.display())?;
+                writeln!(log, "[MISSING] {} -> {}", lib_name, p.display())?;
             }
         } else {
-            writeln!(log, "  [PARSE ERROR] Cannot get path for: {}", lib_name)?;
+            writeln!(log, "[PARSE ERROR] {} (could not determine path)", lib_name)?;
         }
-        
+
         if let Some(p) = native_jar_path(lib) {
             if p.is_file() {
-                classpath.push(p);
+                classpath.push(p.clone());
+                writeln!(log, "[OK NATIVE] {} -> {}", lib_name, p.display())?;
             } else {
-                writeln!(log, "  [MISSING native] {} -> {}", lib_name, p.display())?;
+                writeln!(log, "[MISSING NATIVE] {} -> {}", lib_name, p.display())?;
             }
         }
     }
 
-    writeln!(log, "=====================\n")?;
-
-    // --- ИСПРАВЛЕНИЕ ЗДЕСЬ ---
-    // 1. Проверяем и добавляем JAR текущей версии (если есть)
     let current_jar = paths::versions_dir().join(id).join(format!("{id}.jar"));
     if current_jar.is_file() {
-        classpath.push(current_jar);
+        classpath.push(current_jar.clone());
+        writeln!(log, "[OK CURRENT JAR] {}", current_jar.display())?;
     }
 
-    // 2. Проверяем и добавляем JAR родительской версии (для ванильного клиента 1.20.4)
     if let Some(p) = &parent {
         let parent_jar = paths::versions_dir().join(p).join(format!("{p}.jar"));
         if parent_jar.is_file() {
-            classpath.push(parent_jar);
+            classpath.push(parent_jar.clone());
+            writeln!(log, "[OK PARENT JAR] {}", parent_jar.display())?;
         }
     }
-    // ------------------------
+
+    writeln!(log, "Total classpath entries: {}", classpath.len())?;
+    writeln!(log, "=== END RESOLVE DEBUG ===")?;
 
     let asset_index = json["assetIndex"]["id"]
         .as_str()
@@ -161,33 +162,24 @@ fn resolve(id: &str) -> Result<Resolved> {
         }
     }
 
-    Ok(Resolved { main_class, classpath, asset_index, game_args })
+    Ok(Resolved {
+        main_class,
+        classpath,
+        asset_index,
+        game_args,
+    })
 }
 
 pub fn launch(id: &str, username: &str, uuid: &str) -> Result<()> {
     let resolved = resolve(id)?;
     fs::create_dir_all(paths::game_dir())?;
-    
+
     let classpath = resolved
         .classpath
         .iter()
         .map(|p| p.to_string_lossy().to_string())
         .collect::<Vec<_>>()
         .join(":");
-
-    // === ОТЛАДКА В ФАЙЛ ===
-    let log_path = paths::game_dir().join("debug.log");
-    let mut log = fs::File::create(&log_path)?;
-    use std::io::Write;
-    
-    writeln!(log, "=== LAUNCH DEBUG ===")?;
-    writeln!(log, "Main class: {}", resolved.main_class)?;
-    writeln!(log, "Classpath entries count: {}", resolved.classpath.len())?;
-    
-    for path in &resolved.classpath {
-        writeln!(log, "  [CP] {} (exists: {})", path.display(), path.is_file())?;
-    }
-    writeln!(log, "====================\n")?;
 
     let mut ph = HashMap::new();
     ph.insert("${auth_player_name}", username.to_string());
@@ -207,7 +199,7 @@ pub fn launch(id: &str, username: &str, uuid: &str) -> Result<()> {
     java_args.push("-cp".to_string());
     java_args.push(classpath);
     java_args.push(resolved.main_class.clone());
-    
+
     for arg in &resolved.game_args {
         let mut a = arg.clone();
         for (k, v) in &ph {
@@ -220,14 +212,13 @@ pub fn launch(id: &str, username: &str, uuid: &str) -> Result<()> {
     let args_content = java_args.join("\n");
     fs::write(&args_file, &args_content)?;
 
-    writeln!(log, "Launching with argfile: {}", args_file.display())?;
-    writeln!(log, "Args content:\n{}", args_content)?;
-
+    println!("Launching with argfile: {}", args_file.display());
+    
     let mut cmd = Command::new("java");
     cmd.arg(format!("@{}", args_file.to_string_lossy()));
     cmd.current_dir(paths::game_dir());
     
     cmd.spawn()?;
-    
+
     Ok(())
 }
