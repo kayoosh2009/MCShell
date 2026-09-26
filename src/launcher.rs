@@ -14,7 +14,6 @@ fn load_version_json(id: &str) -> Result<Value> {
     Ok(serde_json::from_slice(&fs::read(&path)?)?)
 }
 
-/// Преобразует Maven-имя "group:artifact:version" в путь "group/artifact/version/artifact-version.jar"
 fn maven_to_path(name: &str) -> Option<PathBuf> {
     let parts: Vec<&str> = name.split(':').collect();
     if parts.len() < 3 {
@@ -92,10 +91,14 @@ fn resolve(id: &str) -> Result<Resolved> {
             continue;
         }
         if let Some(p) = library_jar_path(lib) {
-            classpath.push(p);
+            if p.is_file() {
+                classpath.push(p);
+            }
         }
         if let Some(p) = native_jar_path(lib) {
-            classpath.push(p);
+            if p.is_file() {
+                classpath.push(p);
+            }
         }
     }
 
@@ -137,7 +140,21 @@ pub fn launch(id: &str, username: &str, uuid: &str) -> Result<()> {
     let resolved = resolve(id)?;
     fs::create_dir_all(paths::game_dir())?;
 
-    let classpath = resolved.classpath.iter().map(|p| p.to_string_lossy().to_string()).collect::<Vec<_>>().join(":");
+    let classpath = resolved
+        .classpath
+        .iter()
+        .map(|p| p.to_string_lossy().to_string())
+        .collect::<Vec<_>>()
+        .join(":");
+
+    // === ОТЛАДОЧНЫЙ ВЫВОД ===
+    println!("\n=== LAUNCH DEBUG ===");
+    println!("Main class: {}", resolved.main_class);
+    println!("Classpath entries count: {}", resolved.classpath.len());
+    for path in &resolved.classpath {
+        println!("  [CP] {} (exists: {})", path.display(), path.is_file());
+    }
+    println!("====================\n");
 
     let mut ph = HashMap::new();
     ph.insert("${auth_player_name}", username.to_string());
