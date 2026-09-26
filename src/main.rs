@@ -1,8 +1,11 @@
 mod app;
+mod fabric;
+mod launcher;
 mod paths;
 mod profile;
 mod skin;
 mod ui;
+mod versions;
 
 use std::io;
 
