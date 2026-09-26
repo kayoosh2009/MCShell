@@ -82,6 +82,8 @@ pub fn download_libraries(libraries: &Value, progress: &dyn Fn(String)) -> Resul
         if !library_allowed(lib) {
             continue;
         }
+
+        // 1. Стандартные библиотеки Mojang с блоком downloads
         if let Some(artifact) = lib.get("downloads").and_then(|d| d.get("artifact")) {
             if let (Some(path), Some(url)) = (
                 artifact.get("path").and_then(|p| p.as_str()),
@@ -89,19 +91,45 @@ pub fn download_libraries(libraries: &Value, progress: &dyn Fn(String)) -> Resul
             ) {
                 progress(format!("library: {path}"));
                 download_to(url, &libs_dir.join(path))?;
+                
+                // Нативы Mojang
+                if let Some(native) = lib
+                    .get("downloads")
+                    .and_then(|d| d.get("classifiers"))
+                    .and_then(|c| c.get("natives-linux"))
+                {
+                    if let (Some(n_path), Some(n_url)) = (
+                        native.get("path").and_then(|p| p.as_str()),
+                        native.get("url").and_then(|u| u.as_str()),
+                    ) {
+                        progress(format!("native: {n_path}"));
+                        download_to(n_url, &libs_dir.join(n_path))?;
+                    }
+                }
+                continue;
             }
         }
-        if let Some(native) = lib
-            .get("downloads")
-            .and_then(|d| d.get("classifiers"))
-            .and_then(|c| c.get("natives-linux"))
-        {
-            if let (Some(path), Some(url)) = (
-                native.get("path").and_then(|p| p.as_str()),
-                native.get("url").and_then(|u| u.as_str()),
-            ) {
-                progress(format!("native: {path}"));
-                download_to(url, &libs_dir.join(path))?;
+
+        // 2. Библиотеки Fabric без блока downloads (скачиваем по Maven name)
+        if let Some(name) = lib.get("name").and_then(|n| n.as_str()) {
+            let base_url = lib.get("url").and_then(|u| u.as_str()).unwrap_or("https://maven.fabricmc.net/");
+            let parts: Vec<&str> = name.split(':').collect();
+            if parts.len() >= 3 {
+                let group = parts[0].replace('.', "/");
+                let artifact = parts[1];
+                let version = parts[2];
+                
+                let filename = if parts.len() >= 4 {
+                    format!("{artifact}-{version}-{}.jar", parts[3])
+                } else {
+                    format!("{artifact}-{version}.jar")
+                };
+
+                let rel_path = format!("{group}/{artifact}/{version}/{filename}");
+                let full_url = format!("{base_url}{rel_path}");
+                
+                progress(format!("fabric library: {artifact}-{version}"));
+                download_to(&full_url, &libs_dir.join(rel_path))?;
             }
         }
     }
