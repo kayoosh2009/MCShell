@@ -86,21 +86,49 @@ fn resolve(id: &str) -> Result<Resolved> {
     let parent_libs = parent_json.as_ref().and_then(|p| p.get("libraries")).and_then(|v| v.as_array()).unwrap_or(&empty);
 
     let mut classpath = Vec::new();
+    let log_path = paths::game_dir().join("debug.log");
+    let mut log = fs::File::create(&log_path)?;
+    use std::io::Write;
+
+    writeln!(log, "=== RESOLVE DEBUG ===")?;
+
     for lib in parent_libs.iter().chain(own_libs.iter()) {
         if !library_allowed(lib) {
             continue;
         }
+        
+        let lib_name = lib.get("name").and_then(|n| n.as_str()).unwrap_or("unknown");
+        
+        // Детальная диагностика для библиотек Fabric
+        if lib_name.contains("fabricmc") || lib_name.contains("intermediary") {
+            writeln!(log, "\n=== FABRIC LIB: {} ===", lib_name)?;
+            writeln!(log, "  Has downloads: {}", lib.get("downloads").is_some())?;
+            if let Some(downloads) = lib.get("downloads") {
+                writeln!(log, "  downloads.artifact.path: {:?}", 
+                    downloads.get("artifact").and_then(|a| a.get("path")).and_then(|p| p.as_str()))?;
+            }
+        }
+        
         if let Some(p) = library_jar_path(lib) {
             if p.is_file() {
                 classpath.push(p);
+            } else {
+                writeln!(log, "  [MISSING] {} -> {}", lib_name, p.display())?;
             }
+        } else {
+            writeln!(log, "  [PARSE ERROR] Cannot get path for: {}", lib_name)?;
         }
+        
         if let Some(p) = native_jar_path(lib) {
             if p.is_file() {
                 classpath.push(p);
+            } else {
+                writeln!(log, "  [MISSING native] {} -> {}", lib_name, p.display())?;
             }
         }
     }
+
+    writeln!(log, "=====================\n")?;
 
     // --- ИСПРАВЛЕНИЕ ЗДЕСЬ ---
     // 1. Проверяем и добавляем JAR текущей версии (если есть)
@@ -139,7 +167,7 @@ fn resolve(id: &str) -> Result<Resolved> {
 pub fn launch(id: &str, username: &str, uuid: &str) -> Result<()> {
     let resolved = resolve(id)?;
     fs::create_dir_all(paths::game_dir())?;
-
+    
     let classpath = resolved
         .classpath
         .iter()
@@ -147,14 +175,19 @@ pub fn launch(id: &str, username: &str, uuid: &str) -> Result<()> {
         .collect::<Vec<_>>()
         .join(":");
 
-    // === ОТЛАДОЧНЫЙ ВЫВОД ===
-    println!("\n=== LAUNCH DEBUG ===");
-    println!("Main class: {}", resolved.main_class);
-    println!("Classpath entries count: {}", resolved.classpath.len());
+    // === ОТЛАДКА В ФАЙЛ ===
+    let log_path = paths::game_dir().join("debug.log");
+    let mut log = fs::File::create(&log_path)?;
+    use std::io::Write;
+    
+    writeln!(log, "=== LAUNCH DEBUG ===")?;
+    writeln!(log, "Main class: {}", resolved.main_class)?;
+    writeln!(log, "Classpath entries count: {}", resolved.classpath.len())?;
+    
     for path in &resolved.classpath {
-        println!("  [CP] {} (exists: {})", path.display(), path.is_file());
+        writeln!(log, "  [CP] {} (exists: {})", path.display(), path.is_file())?;
     }
-    println!("====================\n");
+    writeln!(log, "====================\n")?;
 
     let mut ph = HashMap::new();
     ph.insert("${auth_player_name}", username.to_string());
@@ -169,18 +202,32 @@ pub fn launch(id: &str, username: &str, uuid: &str) -> Result<()> {
     ph.insert("${clientid}", String::new());
     ph.insert("${auth_xuid}", String::new());
 
-    let mut cmd = Command::new("java");
-    cmd.arg(format!("-Djava.library.path={}", paths::libraries_dir().to_string_lossy()));
-    cmd.arg("-cp").arg(&classpath);
-    cmd.arg(&resolved.main_class);
+    let mut java_args = Vec::new();
+    java_args.push(format!("-Djava.library.path={}", paths::libraries_dir().to_string_lossy()));
+    java_args.push("-cp".to_string());
+    java_args.push(classpath);
+    java_args.push(resolved.main_class.clone());
+    
     for arg in &resolved.game_args {
         let mut a = arg.clone();
         for (k, v) in &ph {
             a = a.replace(k, v);
         }
-        cmd.arg(a);
+        java_args.push(a);
     }
+
+    let args_file = paths::game_dir().join("launch_args.txt");
+    let args_content = java_args.join("\n");
+    fs::write(&args_file, &args_content)?;
+
+    writeln!(log, "Launching with argfile: {}", args_file.display())?;
+    writeln!(log, "Args content:\n{}", args_content)?;
+
+    let mut cmd = Command::new("java");
+    cmd.arg(format!("@{}", args_file.to_string_lossy()));
     cmd.current_dir(paths::game_dir());
+    
     cmd.spawn()?;
+    
     Ok(())
 }

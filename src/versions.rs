@@ -113,21 +113,25 @@ pub fn download_libraries(libraries: &Value, progress: &dyn Fn(String)) -> Resul
         // 2. Библиотеки Fabric без блока downloads (скачиваем по Maven name)
         if let Some(name) = lib.get("name").and_then(|n| n.as_str()) {
             let base_url = lib.get("url").and_then(|u| u.as_str()).unwrap_or("https://maven.fabricmc.net/");
+            // Гарантируем, что URL заканчивается на /
+            let base_url = if base_url.ends_with('/') { 
+                base_url.to_string() 
+            } else { 
+                format!("{base_url}/") 
+            };
+            
             let parts: Vec<&str> = name.split(':').collect();
             if parts.len() >= 3 {
                 let group = parts[0].replace('.', "/");
                 let artifact = parts[1];
                 let version = parts[2];
-                
                 let filename = if parts.len() >= 4 {
                     format!("{artifact}-{version}-{}.jar", parts[3])
                 } else {
                     format!("{artifact}-{version}.jar")
                 };
-
                 let rel_path = format!("{group}/{artifact}/{version}/{filename}");
                 let full_url = format!("{base_url}{rel_path}");
-                
                 progress(format!("fabric library: {artifact}-{version}"));
                 download_to(&full_url, &libs_dir.join(rel_path))?;
             }
