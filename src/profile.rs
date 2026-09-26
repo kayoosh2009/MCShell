@@ -11,9 +11,10 @@ pub struct Profile {
 impl Profile {
     pub fn load() -> Self {
         let username = fs::read_to_string(paths::profile_file())
+            .ok()
             .map(|s| s.trim().to_string())
             .filter(|s| !s.is_empty())
-            .unwrap_or_else(|_| "Player".to_string());
+            .unwrap_or_else(|| "Player".to_string());
         Self { username }
     }
 
