@@ -1,10 +1,8 @@
-use std::fs;
-
+use crate::paths;
 use anyhow::{anyhow, Result};
 use serde_json::Value;
-
-use crate::paths;
-use crate::versions::download_libraries;
+use std::fs;
+use std::path::PathBuf;
 
 pub fn fetch_loader_versions(mc_version: &str) -> Result<Vec<String>> {
     let url = format!("https://meta.fabricmc.net/v2/versions/loader/{mc_version}");
@@ -41,3 +39,4 @@ pub fn install_fabric(mc_version: &str, loader_version: &str, progress: &dyn Fn(
     progress(format!("fabric {loader_version} for {mc_version}: install complete"));
     Ok(id)
 }
+
