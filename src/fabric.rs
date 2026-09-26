@@ -26,10 +26,21 @@ pub fn install_fabric(mc_version: &str, loader_version: &str, progress: &dyn Fn(
     fs::create_dir_all(&version_dir)?;
     fs::write(version_dir.join(format!("{id}.json")), serde_json::to_vec_pretty(&profile)?)?;
 
+    // 1. Сначала скачиваем/проверяем родительскую ванильную версию Minecraft (например, 1.20.4)
+    if let Some(inherits) = profile.get("inheritsFrom").and_then(|v| v.as_str()) {
+        progress(format!("checking parent vanilla version: {inherits}"));
+        crate::versions::install_version(inherits, progress)?;
+    }
+
+    // 2. Затем скачиваем собственные библиотеки Fabric
     if let Some(libs) = profile.get("libraries") {
         progress("downloading fabric libraries".to_string());
         download_libraries(libs, progress)?;
     }
+
+    progress(format!("fabric {loader_version} for {mc_version}: install complete"));
+    Ok(id)
+}
 
     progress(format!("fabric {loader_version} for {mc_version}: install complete"));
     Ok(id)
