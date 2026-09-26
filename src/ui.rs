@@ -23,20 +23,39 @@ pub fn draw(f: &mut Frame, app: &App) {
     let text = match app.current_tab {
         Tab::Profile => match app.input_mode {
             InputMode::EditingUsername => format!("New username: {}_", app.input_buffer),
-            InputMode::Normal => format!(
+            _ => format!(
                 "Username: {}\nUUID: {}\n\npress 'e' to edit username",
                 app.profile.username,
                 app.profile.offline_uuid()
             ),
         },
-        Tab::Versions => "Installed versions and download will show here.".to_string(),
+        Tab::Versions => {
+            let mut lines = vec![match app.input_mode {
+                InputMode::EditingVersion => format!("Version id: {}_", app.input_buffer),
+                _ => "i: type version id, r: fetch list, up/down+enter: install, f: install fabric".to_string(),
+            }];
+            lines.push(format!("installed: {}", app.installed.join(", ")));
+            lines.push(String::new());
+            for (i, v) in app.remote_versions.iter().take(25).enumerate() {
+                let marker = if i == app.list_index { ">" } else { " " };
+                lines.push(format!("{marker} {} ({})", v.id, v.kind));
+            }
+            lines.join("\n")
+        }
         Tab::Mods => "Mod list, toggle and remove will show here.".to_string(),
         Tab::Skins => format!(
             "Skin: {}\n\ndrop a PNG file on the terminal window to set it",
             if app.has_skin { "set" } else { "not set" }
         ),
         Tab::Worlds => "World list, export and import will show here.".to_string(),
-        Tab::Launch => "Launch button and game log will show here.".to_string(),
+        Tab::Launch => {
+            let mut lines = vec!["up/down: select, enter: launch".to_string(), String::new()];
+            for (i, v) in app.installed.iter().enumerate() {
+                let marker = if i == app.list_index { ">" } else { " " };
+                lines.push(format!("{marker} {v}"));
+            }
+            lines.join("\n")
+        }
     };
     let body = Paragraph::new(text).block(Block::default().borders(Borders::ALL).title(title));
     f.render_widget(body, chunks[1]);
