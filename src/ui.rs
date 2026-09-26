@@ -46,6 +46,14 @@ pub fn draw(f: &mut Frame, app: &App) {
         Tab::Skins => format!(
             "Skin: {}\n\ndrop a PNG file on the terminal window to set it",
             if app.has_skin { "set" } else { "not set" }
+            if app.has_skin {
+                if let Ok(img) = image::open(crate::paths::skin_file()) {
+                    let lines = skin_view::skin_to_lines(&img, 32, 32); // 32×32 символа
+                    let paragraph = Paragraph::new(lines)
+                        .block(Block::default().borders(Borders::ALL).title("Skin preview"));
+                    f.render_widget(paragraph, area);
+                }
+            }
         ),
         Tab::Worlds => "World list, export and import will show here.".to_string(),
         Tab::Launch => {
