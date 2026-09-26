@@ -73,12 +73,21 @@ fn resolve(id: &str) -> Result<Resolved> {
         }
     }
 
-    let jar_id = if json["downloads"]["client"].is_object() {
-        id.to_string()
-    } else {
-        parent.clone().ok_or_else(|| anyhow!("no client jar"))?
-    };
-    classpath.push(paths::versions_dir().join(&jar_id).join(format!("{jar_id}.jar")));
+    // --- ИСПРАВЛЕНИЕ ЗДЕСЬ ---
+    // 1. Проверяем и добавляем JAR текущей версии (если есть)
+    let current_jar = paths::versions_dir().join(id).join(format!("{id}.jar"));
+    if current_jar.is_file() {
+        classpath.push(current_jar);
+    }
+
+    // 2. Проверяем и добавляем JAR родительской версии (для ванильного клиента 1.20.4)
+    if let Some(p) = &parent {
+        let parent_jar = paths::versions_dir().join(p).join(format!("{p}.jar"));
+        if parent_jar.is_file() {
+            classpath.push(parent_jar);
+        }
+    }
+    // ------------------------
 
     let asset_index = json["assetIndex"]["id"]
         .as_str()
