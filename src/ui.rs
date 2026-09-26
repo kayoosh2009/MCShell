@@ -43,18 +43,36 @@ pub fn draw(f: &mut Frame, app: &App) {
             lines.join("\n")
         }
         Tab::Mods => "Mod list, toggle and remove will show here.".to_string(),
-        Tab::Skins => format!(
-            "Skin: {}\n\ndrop a PNG file on the terminal window to set it",
-            if app.has_skin { "set" } else { "not set" }
+        Tab::Skins => {
+            let text = format!(
+                "Skin: {}\n\ndrop a PNG file on the terminal window to set it",
+                if app.has_skin { "set" } else { "not set" }
+            );
+            
+            let body = Paragraph::new(text).block(Block::default().borders(Borders::ALL).title(title));
+            f.render_widget(body, chunks[1]);
+            
             if app.has_skin {
                 if let Ok(img) = image::open(crate::paths::skin_file()) {
-                    let lines = skin_view::skin_to_lines(&img, 32, 32); // 32×32 символа
-                    let paragraph = Paragraph::new(lines)
+                    let lines = skin_view::skin_to_lines(&img, 32, 32);
+                    let preview = Paragraph::new(lines)
                         .block(Block::default().borders(Borders::ALL).title("Skin preview"));
-                    f.render_widget(paragraph, area);
+                    
+                    // Размещаем превью в правой части экрана
+                    let preview_area = ratatui::layout::Layout::default()
+                        .direction(ratatui::layout::Direction::Horizontal)
+                        .constraints([
+                            ratatui::layout::Constraint::Percentage(50),
+                            ratatui::layout::Constraint::Percentage(50),
+                        ])
+                        .split(chunks[1])[1];
+                    
+                    f.render_widget(preview, preview_area);
                 }
             }
-        ),
+            
+            return; // Пропускаем общий рендеринг body ниже
+        },
         Tab::Worlds => "World list, export and import will show here.".to_string(),
         Tab::Launch => {
             let mut lines = vec!["up/down: select, enter: launch".to_string(), String::new()];
