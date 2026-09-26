@@ -6,4 +6,5 @@ edition = "2021"
 [dependencies]
 anyhow = "1.0.104"
 crossterm = "=0.27.0"
+md-5 = "=0.10.6"
 ratatui = { version = "=0.26.3", default-features = false, features = ["crossterm"] }
