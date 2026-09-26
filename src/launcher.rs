@@ -1,0 +1,134 @@
+use std::collections::HashMap;
+use std::fs;
+use std::path::PathBuf;
+use std::process::Command;
+
+use anyhow::{anyhow, Result};
+use serde_json::Value;
+
+use crate::paths;
+use crate::versions::library_allowed;
+
+fn load_version_json(id: &str) -> Result<Value> {
+    let path = paths::versions_dir().join(id).join(format!("{id}.json"));
+    Ok(serde_json::from_slice(&fs::read(&path)?)?)
+}
+
+fn library_jar_path(lib: &Value) -> Option<PathBuf> {
+    let path = lib.get("downloads")?.get("artifact")?.get("path")?.as_str()?;
+    Some(paths::libraries_dir().join(path))
+}
+
+fn native_jar_path(lib: &Value) -> Option<PathBuf> {
+    let path = lib.get("downloads")?.get("classifiers")?.get("natives-linux")?.get("path")?.as_str()?;
+    Some(paths::libraries_dir().join(path))
+}
+
+fn collect_game_args(json: &Value) -> Vec<String> {
+    if let Some(s) = json.get("minecraftArguments").and_then(|v| v.as_str()) {
+        return s.split_whitespace().map(|s| s.to_string()).collect();
+    }
+    json.get("arguments")
+        .and_then(|a| a.get("game"))
+        .and_then(|g| g.as_array())
+        .map(|arr| arr.iter().filter_map(|i| i.as_str().map(|s| s.to_string())).collect())
+        .unwrap_or_default()
+}
+
+struct Resolved {
+    main_class: String,
+    classpath: Vec<PathBuf>,
+    asset_index: String,
+    game_args: Vec<String>,
+}
+
+fn resolve(id: &str) -> Result<Resolved> {
+    let json = load_version_json(id)?;
+    let parent = json.get("inheritsFrom").and_then(|v| v.as_str()).map(|s| s.to_string());
+    let parent_json = match &parent {
+        Some(p) => Some(load_version_json(p)?),
+        None => None,
+    };
+
+    let main_class = json["mainClass"]
+        .as_str()
+        .or_else(|| parent_json.as_ref().and_then(|p| p["mainClass"].as_str()))
+        .ok_or_else(|| anyhow!("no mainClass"))?
+        .to_string();
+
+    let empty = Vec::new();
+    let own_libs = json.get("libraries").and_then(|v| v.as_array()).unwrap_or(&empty);
+    let parent_libs = parent_json.as_ref().and_then(|p| p.get("libraries")).and_then(|v| v.as_array()).unwrap_or(&empty);
+
+    let mut classpath = Vec::new();
+    for lib in parent_libs.iter().chain(own_libs.iter()) {
+        if !library_allowed(lib) {
+            continue;
+        }
+        if let Some(p) = library_jar_path(lib) {
+            classpath.push(p);
+        }
+        if let Some(p) = native_jar_path(lib) {
+            classpath.push(p);
+        }
+    }
+
+    let jar_id = if json["downloads"]["client"].is_object() {
+        id.to_string()
+    } else {
+        parent.clone().ok_or_else(|| anyhow!("no client jar"))?
+    };
+    classpath.push(paths::versions_dir().join(&jar_id).join(format!("{jar_id}.jar")));
+
+    let asset_index = json["assetIndex"]["id"]
+        .as_str()
+        .or_else(|| parent_json.as_ref().and_then(|p| p["assetIndex"]["id"].as_str()))
+        .unwrap_or("legacy")
+        .to_string();
+
+    let mut game_args = collect_game_args(&json);
+    if let Some(p) = &parent_json {
+        for a in collect_game_args(p) {
+            if !game_args.contains(&a) {
+                game_args.push(a);
+            }
+        }
+    }
+
+    Ok(Resolved { main_class, classpath, asset_index, game_args })
+}
+
+pub fn launch(id: &str, username: &str, uuid: &str) -> Result<()> {
+    let resolved = resolve(id)?;
+    fs::create_dir_all(paths::game_dir())?;
+
+    let classpath = resolved.classpath.iter().map(|p| p.to_string_lossy().to_string()).collect::<Vec<_>>().join(":");
+
+    let mut ph = HashMap::new();
+    ph.insert("${auth_player_name}", username.to_string());
+    ph.insert("${version_name}", id.to_string());
+    ph.insert("${game_directory}", paths::game_dir().to_string_lossy().to_string());
+    ph.insert("${assets_root}", paths::assets_dir().to_string_lossy().to_string());
+    ph.insert("${assets_index_name}", resolved.asset_index.clone());
+    ph.insert("${auth_uuid}", uuid.to_string());
+    ph.insert("${auth_access_token}", "0".to_string());
+    ph.insert("${user_type}", "legacy".to_string());
+    ph.insert("${version_type}", "release".to_string());
+    ph.insert("${clientid}", String::new());
+    ph.insert("${auth_xuid}", String::new());
+
+    let mut cmd = Command::new("java");
+    cmd.arg(format!("-Djava.library.path={}", paths::libraries_dir().to_string_lossy()));
+    cmd.arg("-cp").arg(&classpath);
+    cmd.arg(&resolved.main_class);
+    for arg in &resolved.game_args {
+        let mut a = arg.clone();
+        for (k, v) in &ph {
+            a = a.replace(k, v);
+        }
+        cmd.arg(a);
+    }
+    cmd.current_dir(paths::game_dir());
+    cmd.spawn()?;
+    Ok(())
+}

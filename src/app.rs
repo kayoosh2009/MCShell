@@ -1,5 +1,6 @@
 use std::io;
 use std::path::PathBuf;
+use std::sync::mpsc::{self, Receiver, TryRecvError};
 use std::time::Duration;
 
 use anyhow::Result;
@@ -8,8 +9,7 @@ use ratatui::backend::CrosstermBackend;
 use ratatui::Terminal;
 
 use crate::profile::Profile;
-use crate::skin;
-use crate::ui;
+use crate::{fabric, launcher, skin, ui, versions};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum Tab {
@@ -22,14 +22,7 @@ pub enum Tab {
 }
 
 impl Tab {
-    pub const ALL: [Tab; 6] = [
-        Tab::Profile,
-        Tab::Versions,
-        Tab::Mods,
-        Tab::Skins,
-        Tab::Worlds,
-        Tab::Launch,
-    ];
+    pub const ALL: [Tab; 6] = [Tab::Profile, Tab::Versions, Tab::Mods, Tab::Skins, Tab::Worlds, Tab::Launch];
 
     pub fn title(&self) -> &'static str {
         match self {
@@ -50,6 +43,7 @@ impl Tab {
 pub enum InputMode {
     Normal,
     EditingUsername,
+    EditingVersion,
 }
 
 pub struct App {
@@ -60,6 +54,11 @@ pub struct App {
     pub input_mode: InputMode,
     pub input_buffer: String,
     pub has_skin: bool,
+    pub installed: Vec<String>,
+    pub remote_versions: Vec<versions::VersionEntry>,
+    pub list_index: usize,
+    pub last_vanilla: Option<String>,
+    progress_rx: Option<Receiver<String>>,
 }
 
 impl App {
@@ -72,6 +71,11 @@ impl App {
             input_mode: InputMode::Normal,
             input_buffer: String::new(),
             has_skin: skin::has_skin(),
+            installed: versions::installed_versions(),
+            remote_versions: Vec::new(),
+            list_index: 0,
+            last_vanilla: None,
+            progress_rx: None,
         }
     }
 
@@ -86,6 +90,55 @@ impl App {
         self.current_tab = Tab::ALL[i];
     }
 
+    fn spawn_version_install(&mut self, id: String) {
+        let (tx, rx) = mpsc::channel();
+        self.progress_rx = Some(rx);
+        self.status = format!("installing {id}...");
+        std::thread::spawn(move || {
+            let progress = |msg: String| { let _ = tx.send(msg); };
+            if let Err(e) = versions::install_version(&id, &progress) {
+                let _ = tx.send(format!("error: {e}"));
+            }
+        });
+    }
+
+    fn spawn_fabric_install(&mut self, mc_version: String) {
+        let (tx, rx) = mpsc::channel();
+        self.progress_rx = Some(rx);
+        self.status = format!("installing fabric for {mc_version}...");
+        std::thread::spawn(move || {
+            let progress = |msg: String| { let _ = tx.send(msg); };
+            match fabric::fetch_loader_versions(&mc_version) {
+                Ok(loaders) => match loaders.first() {
+                    Some(loader) => {
+                        if let Err(e) = fabric::install_fabric(&mc_version, loader, &progress) {
+                            let _ = tx.send(format!("error: {e}"));
+                        }
+                    }
+                    None => { let _ = tx.send("no fabric loader found".to_string()); }
+                },
+                Err(e) => { let _ = tx.send(format!("error: {e}")); }
+            }
+        });
+    }
+
+    fn poll_progress(&mut self) {
+        let mut disconnected = false;
+        if let Some(rx) = &self.progress_rx {
+            loop {
+                match rx.try_recv() {
+                    Ok(msg) => self.status = msg,
+                    Err(TryRecvError::Empty) => break,
+                    Err(TryRecvError::Disconnected) => { disconnected = true; break; }
+                }
+            }
+        }
+        if disconnected {
+            self.progress_rx = None;
+            self.installed = versions::installed_versions();
+        }
+    }
+
     fn handle_key(&mut self, code: KeyCode) {
         match self.input_mode {
             InputMode::Normal => match code {
@@ -95,6 +148,52 @@ impl App {
                 KeyCode::Char('e') if self.current_tab == Tab::Profile => {
                     self.input_mode = InputMode::EditingUsername;
                     self.input_buffer = self.profile.username.clone();
+                }
+                KeyCode::Char('i') if self.current_tab == Tab::Versions => {
+                    self.input_mode = InputMode::EditingVersion;
+                    self.input_buffer = String::new();
+                }
+                KeyCode::Char('r') if self.current_tab == Tab::Versions => match versions::fetch_manifest() {
+                    Ok(list) => {
+                        self.status = format!("fetched {} versions", list.len());
+                        self.remote_versions = list;
+                        self.list_index = 0;
+                    }
+                    Err(e) => self.status = format!("fetch error: {e}"),
+                },
+                KeyCode::Char('f') if self.current_tab == Tab::Versions => {
+                    match self.last_vanilla.clone() {
+                        Some(mc) => self.spawn_fabric_install(mc),
+                        None => self.status = "install a vanilla version first".to_string(),
+                    }
+                }
+                KeyCode::Down if self.current_tab == Tab::Versions && !self.remote_versions.is_empty() => {
+                    self.list_index = (self.list_index + 1) % self.remote_versions.len();
+                }
+                KeyCode::Up if self.current_tab == Tab::Versions && !self.remote_versions.is_empty() => {
+                    self.list_index = (self.list_index + self.remote_versions.len() - 1) % self.remote_versions.len();
+                }
+                KeyCode::Enter if self.current_tab == Tab::Versions => {
+                    if let Some(v) = self.remote_versions.get(self.list_index) {
+                        let id = v.id.clone();
+                        self.last_vanilla = Some(id.clone());
+                        self.spawn_version_install(id);
+                    }
+                }
+                KeyCode::Down if self.current_tab == Tab::Launch && !self.installed.is_empty() => {
+                    self.list_index = (self.list_index + 1) % self.installed.len();
+                }
+                KeyCode::Up if self.current_tab == Tab::Launch && !self.installed.is_empty() => {
+                    self.list_index = (self.list_index + self.installed.len() - 1) % self.installed.len();
+                }
+                KeyCode::Enter if self.current_tab == Tab::Launch => {
+                    if let Some(id) = self.installed.get(self.list_index).cloned() {
+                        let uuid = self.profile.offline_uuid();
+                        match launcher::launch(&id, &self.profile.username, &uuid) {
+                            Ok(()) => self.status = format!("launched {id}"),
+                            Err(e) => self.status = format!("launch error: {e}"),
+                        }
+                    }
                 }
                 _ => {}
             },
@@ -108,9 +207,21 @@ impl App {
                     self.input_mode = InputMode::Normal;
                 }
                 KeyCode::Esc => self.input_mode = InputMode::Normal,
-                KeyCode::Backspace => {
-                    self.input_buffer.pop();
+                KeyCode::Backspace => { self.input_buffer.pop(); }
+                KeyCode::Char(c) => self.input_buffer.push(c),
+                _ => {}
+            },
+            InputMode::EditingVersion => match code {
+                KeyCode::Enter => {
+                    let id = self.input_buffer.trim().to_string();
+                    if !id.is_empty() {
+                        self.last_vanilla = Some(id.clone());
+                        self.spawn_version_install(id);
+                    }
+                    self.input_mode = InputMode::Normal;
                 }
+                KeyCode::Esc => self.input_mode = InputMode::Normal,
+                KeyCode::Backspace => { self.input_buffer.pop(); }
                 KeyCode::Char(c) => self.input_buffer.push(c),
                 _ => {}
             },
@@ -135,6 +246,7 @@ impl App {
 pub fn run(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>) -> Result<()> {
     let mut app = App::new();
     loop {
+        app.poll_progress();
         terminal.draw(|f| ui::draw(f, &app))?;
 
         if event::poll(Duration::from_millis(200))? {

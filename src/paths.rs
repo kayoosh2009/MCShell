@@ -12,3 +12,19 @@ pub fn profile_file() -> PathBuf {
 pub fn skin_file() -> PathBuf {
     data_dir().join("skin.png")
 }
+
+pub fn game_dir() -> PathBuf {
+    data_dir().join("game")
+}
+
+pub fn versions_dir() -> PathBuf {
+    game_dir().join("versions")
+}
+
+pub fn libraries_dir() -> PathBuf {
+    game_dir().join("libraries")
+}
+
+pub fn assets_dir() -> PathBuf {
+    game_dir().join("assets")
+}
