@@ -41,7 +41,3 @@ pub fn install_fabric(mc_version: &str, loader_version: &str, progress: &dyn Fn(
     progress(format!("fabric {loader_version} for {mc_version}: install complete"));
     Ok(id)
 }
-
-    progress(format!("fabric {loader_version} for {mc_version}: install complete"));
-    Ok(id)
-}
