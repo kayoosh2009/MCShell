@@ -18,13 +18,13 @@ pub fn game_dir() -> PathBuf {
 }
 
 pub fn versions_dir() -> PathBuf {
-    game_dir().join("versions")
+    data_dir().join("versions")
 }
 
 pub fn libraries_dir() -> PathBuf {
-    game_dir().join("libraries")
+    data_dir().join("libraries")
 }
 
 pub fn assets_dir() -> PathBuf {
-    game_dir().join("assets")
+    data_dir().join("assets")
 }
