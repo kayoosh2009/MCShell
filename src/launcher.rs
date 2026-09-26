@@ -14,14 +14,40 @@ fn load_version_json(id: &str) -> Result<Value> {
     Ok(serde_json::from_slice(&fs::read(&path)?)?)
 }
 
+/// Преобразует Maven-имя "group:artifact:version" в путь "group/artifact/version/artifact-version.jar"
+fn maven_to_path(name: &str) -> Option<PathBuf> {
+    let parts: Vec<&str> = name.split(':').collect();
+    if parts.len() < 3 {
+        return None;
+    }
+    let group = parts[0].replace('.', "/");
+    let artifact = parts[1];
+    let version = parts[2];
+
+    let filename = if parts.len() >= 4 {
+        format!("{artifact}-{version}-{}.jar", parts[3])
+    } else {
+        format!("{artifact}-{version}.jar")
+    };
+
+    Some(paths::libraries_dir().join(group).join(artifact).join(version).join(filename))
+}
+
 fn library_jar_path(lib: &Value) -> Option<PathBuf> {
-    let path = lib.get("downloads")?.get("artifact")?.get("path")?.as_str()?;
-    Some(paths::libraries_dir().join(path))
+    // 1. Пробуем стандартный путь Mojang через downloads.artifact.path
+    if let Some(path) = lib.get("downloads")?.get("artifact")?.get("path")?.as_str() {
+        return Some(paths::libraries_dir().join(path));
+    }
+    // 2. Если блока downloads нет (как у Fabric), парсим поле "name"
+    let name = lib.get("name")?.as_str()?;
+    maven_to_path(name)
 }
 
 fn native_jar_path(lib: &Value) -> Option<PathBuf> {
-    let path = lib.get("downloads")?.get("classifiers")?.get("natives-linux")?.get("path")?.as_str()?;
-    Some(paths::libraries_dir().join(path))
+    if let Some(path) = lib.get("downloads")?.get("classifiers")?.get("natives-linux")?.get("path")?.as_str() {
+        return Some(paths::libraries_dir().join(path));
+    }
+    None
 }
 
 fn collect_game_args(json: &Value) -> Vec<String> {
