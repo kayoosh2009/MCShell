@@ -114,14 +114,15 @@ fn handle_connection(mut stream: TcpStream, username: &str, uuid: &str, port: u1
 }
 
 fn profile_json(username: &str, uuid: &str, port: u16) -> String {
+    let plain_uuid = crate::profile::strip_dashes(uuid);
     let skin_url = format!("http://127.0.0.1:{port}/skin.png");
     let texture = format!(
-        r#"{{"timestamp":0,"profileId":"{uuid}","profileName":"{username}","textures":{{"SKIN":{{"url":"{skin_url}"}}}}}}"#
+        r#"{{"timestamp":0,"profileId":"{plain_uuid}","profileName":"{username}","textures":{{"SKIN":{{"url":"{skin_url}"}}}}}}"#
     );
     let texture_b64 = base64::engine::general_purpose::STANDARD.encode(&texture);
     let signature = sign(texture_b64.as_bytes()).unwrap_or_default();
     format!(
-        r#"{{"id":"{uuid}","name":"{username}","properties":[{{"name":"textures","value":"{texture_b64}","signature":"{signature}"}}]}}"#
+        r#"{{"id":"{plain_uuid}","name":"{username}","properties":[{{"name":"textures","value":"{texture_b64}","signature":"{signature}"}}]}}"#
     )
 }
 

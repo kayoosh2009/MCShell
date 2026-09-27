@@ -48,3 +48,7 @@ pub fn offline_uuid(username: &str) -> String {
         digest[10], digest[11], digest[12], digest[13], digest[14], digest[15]
     )
 }
+
+pub fn strip_dashes(uuid: &str) -> String {
+    uuid.chars().filter(|c| *c != '-').collect()
+}
