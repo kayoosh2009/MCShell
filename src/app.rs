@@ -297,7 +297,12 @@ pub fn run(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>) -> Result<()> 
         if let Some(id) = app.pending_launch.take() {
             let uuid = app.profile.offline_uuid();
             let username = app.profile.username.clone();
-            let win = if app.hide_after_launch { crate::window::hide_current() } else { None };
+            let win = if app.hide_after_launch { crate::window::hide_current() } else { Err(String::new()) };
+            if let Err(e) = &win {
+                if !e.is_empty() {
+                    app.status = format!("hide window failed: {e}");
+                }
+            }
 
             if app.show_logs_separate {
                 app.status = match launcher::launch(&id, &username, &uuid, true, win) {
