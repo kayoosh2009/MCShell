@@ -56,6 +56,7 @@ fn sign(data: &[u8]) -> Result<String> {
     Ok(base64::engine::general_purpose::STANDARD.encode(output.stdout))
 }
 
+#[allow(dead_code)]
 pub struct SkinServer {
     pub port: u16,
     stop: Arc<AtomicBool>,
@@ -106,6 +107,7 @@ fn handle_connection(mut stream: TcpStream, username: &str, uuid: &str, port: u1
         let body = format!(
             r#"{{"meta":{{"serverName":"MCShell","implementationName":"mcshell","implementationVersion":"0.1.0"}},"skinDomains":["127.0.0.1"],"signaturePublickey":"{pubkey}"}}"#
         );
+        let _ = std::fs::write(paths::data_dir().join("last_metadata.json"), &body);
         write_response(&mut stream, "application/json", body.as_bytes())?;
     }
     Ok(())
