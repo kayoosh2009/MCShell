@@ -32,3 +32,11 @@ pub fn assets_dir() -> PathBuf {
 pub fn authlib_injector_jar() -> PathBuf {
     data_dir().join("authlib-injector.jar")
 }
+
+pub fn private_key_file() -> PathBuf {
+    data_dir().join("skin_key.pem")
+}
+
+pub fn public_key_der_file() -> PathBuf {
+    data_dir().join("skin_key_pub.der")
+}
