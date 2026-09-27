@@ -61,6 +61,8 @@ pub struct App {
     pub remote_versions: Vec<versions::VersionEntry>,
     pub list_index: usize,
     pub last_vanilla: Option<String>,
+    pub launch_mode: launcher::LaunchMode,
+    pending_launch: Option<String>,
     progress_rx: Option<Receiver<String>>,
 }
 
