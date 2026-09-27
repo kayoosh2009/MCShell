@@ -177,7 +177,15 @@ fn resolve(id: &str) -> Result<Resolved> {
     })
 }
 
+pub fn launch_tracked(id: &str, username: &str, uuid: &str, win: Option<String>) -> Result<()> {
+    launch_inner(id, username, uuid, LaunchMode::NewTerminal, win)
+}
+
 pub fn launch(id: &str, username: &str, uuid: &str, mode: LaunchMode) -> Result<()> {
+    launch_inner(id, username, uuid, mode, None)
+}
+
+fn launch_inner(id: &str, username: &str, uuid: &str, mode: LaunchMode, win: Option<String>) -> Result<()> {
     let resolved = resolve(id)?;
     fs::create_dir_all(paths::game_dir())?;
 
@@ -241,8 +249,12 @@ pub fn launch(id: &str, username: &str, uuid: &str, mode: LaunchMode) -> Result<
             let mut cmd = Command::new("konsole");
             cmd.arg("-e").arg("java").arg(format!("@{}", args_file.to_string_lossy()));
             cmd.current_dir(paths::game_dir());
-            cmd.spawn()?;
-            std::mem::forget(server);
+            let mut child = cmd.spawn()?;
+            std::thread::spawn(move || {
+                let _ = child.wait();
+                server.stop();
+                crate::window::restore(win);
+            });
         }
     }
 
