@@ -6,6 +6,7 @@ use std::process::Command;
 use anyhow::{anyhow, Result};
 use serde_json::Value;
 use crate::paths;
+use crate::skin_server;
 use crate::versions::library_allowed;
 
 fn load_version_json(id: &str) -> Result<Value> {
@@ -174,6 +175,11 @@ pub fn launch(id: &str, username: &str, uuid: &str) -> Result<()> {
     let resolved = resolve(id)?;
     fs::create_dir_all(paths::game_dir())?;
 
+    skin_server::ensure_authlib_injector()?;
+    let server = skin_server::SkinServer::start(username.to_string(), uuid.to_string())?;
+    let port = server.port;
+    std::mem::forget(server);
+
     let classpath = resolved
         .classpath
         .iter()
@@ -195,6 +201,12 @@ pub fn launch(id: &str, username: &str, uuid: &str) -> Result<()> {
     ph.insert("${auth_xuid}", String::new());
 
     let mut java_args = Vec::new();
+    java_args.push(format!(
+        "-javaagent:{}={}",
+        paths::authlib_injector_jar().to_string_lossy(),
+        format!("http://127.0.0.1:{port}/api")
+    ));
+    java_args.push("-Dauthlibinjector.side=client".to_string());
     java_args.push(format!("-Djava.library.path={}", paths::libraries_dir().to_string_lossy()));
     java_args.push("-cp".to_string());
     java_args.push(classpath);
