@@ -28,3 +28,7 @@ pub fn libraries_dir() -> PathBuf {
 pub fn assets_dir() -> PathBuf {
     data_dir().join("assets")
 }
+
+pub fn authlib_injector_jar() -> PathBuf {
+    data_dir().join("authlib-injector.jar")
+}
