@@ -61,7 +61,8 @@ pub struct App {
     pub remote_versions: Vec<versions::VersionEntry>,
     pub list_index: usize,
     pub last_vanilla: Option<String>,
-    pub launch_mode: launcher::LaunchMode,
+    pub hide_after_launch: bool,
+    pub show_logs_separate: bool,
     pending_launch: Option<String>,
     progress_rx: Option<Receiver<String>>,
 }
@@ -81,7 +82,8 @@ impl App {
             remote_versions: Vec::new(),
             list_index: 0,
             last_vanilla: None,
-            launch_mode: launcher::LaunchMode::NewTerminal,
+            hide_after_launch: false,
+            show_logs_separate: true,
             pending_launch: None,
             progress_rx: None,
         }
@@ -220,10 +222,10 @@ impl App {
                     self.list_index = (self.list_index + self.installed.len() - 1) % self.installed.len();
                 }
                 KeyCode::Char('1') if self.current_tab == Tab::Launch => {
-                    self.launch_mode = launcher::LaunchMode::InPlace;
+                    self.hide_after_launch = !self.hide_after_launch;
                 }
                 KeyCode::Char('2') if self.current_tab == Tab::Launch => {
-                    self.launch_mode = launcher::LaunchMode::NewTerminal;
+                    self.show_logs_separate = !self.show_logs_separate;
                 }
                 KeyCode::Enter if self.current_tab == Tab::Launch => {
                     if let Some(id) = self.installed.get(self.list_index).cloned() {
@@ -295,23 +297,22 @@ pub fn run(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>) -> Result<()> 
         if let Some(id) = app.pending_launch.take() {
             let uuid = app.profile.offline_uuid();
             let username = app.profile.username.clone();
-            if app.launch_mode == launcher::LaunchMode::InPlace {
+            let win = if app.hide_after_launch { crate::window::hide_current() } else { None };
+
+            if app.show_logs_separate {
+                app.status = match launcher::launch(&id, &username, &uuid, true, win) {
+                    Ok(()) => format!("launched {id} in new terminal"),
+                    Err(e) => format!("launch error: {e}"),
+                };
+            } else {
                 disable_raw_mode()?;
                 execute!(terminal.backend_mut(), LeaveAlternateScreen, DisableBracketedPaste)?;
-                let win = crate::window::hide_current();
-                let result = launcher::launch(&id, &username, &uuid, launcher::LaunchMode::InPlace);
-                crate::window::restore(win);
+                let result = launcher::launch(&id, &username, &uuid, false, win);
                 enable_raw_mode()?;
                 execute!(terminal.backend_mut(), EnterAlternateScreen, EnableBracketedPaste)?;
                 terminal.clear()?;
                 app.status = match result {
                     Ok(()) => format!("launched {id}"),
-                    Err(e) => format!("launch error: {e}"),
-                };
-            } else {
-                let win = crate::window::hide_current();
-                app.status = match launcher::launch_tracked(&id, &username, &uuid, win) {
-                    Ok(()) => format!("launched {id} in new terminal"),
                     Err(e) => format!("launch error: {e}"),
                 };
             }
