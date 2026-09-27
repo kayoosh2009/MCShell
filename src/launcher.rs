@@ -171,7 +171,7 @@ fn resolve(id: &str) -> Result<Resolved> {
     })
 }
 
-pub fn launch(id: &str, username: &str, uuid: &str, show_logs_separate: bool, win: Option<String>) -> Result<()> {
+pub fn launch(id: &str, username: &str, uuid: &str, show_logs_separate: bool, win: Result<String, String>) -> Result<()> {
     let resolved = resolve(id)?;
     fs::create_dir_all(paths::game_dir())?;
 
