@@ -9,6 +9,12 @@ use crate::paths;
 use crate::skin_server;
 use crate::versions::library_allowed;
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum LaunchMode {
+    InPlace,
+    NewTerminal,
+}
+
 fn load_version_json(id: &str) -> Result<Value> {
     let path = paths::versions_dir().join(id).join(format!("{id}.json"));
     Ok(serde_json::from_slice(&fs::read(&path)?)?)
@@ -171,14 +177,13 @@ fn resolve(id: &str) -> Result<Resolved> {
     })
 }
 
-pub fn launch(id: &str, username: &str, uuid: &str) -> Result<()> {
+pub fn launch(id: &str, username: &str, uuid: &str, mode: LaunchMode) -> Result<()> {
     let resolved = resolve(id)?;
     fs::create_dir_all(paths::game_dir())?;
 
     skin_server::ensure_authlib_injector()?;
     let server = skin_server::SkinServer::start(username.to_string(), uuid.to_string())?;
     let port = server.port;
-    std::mem::forget(server);
 
     let classpath = resolved
         .classpath
@@ -224,13 +229,22 @@ pub fn launch(id: &str, username: &str, uuid: &str) -> Result<()> {
     let args_content = java_args.join("\n");
     fs::write(&args_file, &args_content)?;
 
-    println!("Launching with argfile: {}", args_file.display());
-    
-    let mut cmd = Command::new("java");
-    cmd.arg(format!("@{}", args_file.to_string_lossy()));
-    cmd.current_dir(paths::game_dir());
-    
-    cmd.spawn()?;
+    match mode {
+        LaunchMode::InPlace => {
+            let mut cmd = Command::new("java");
+            cmd.arg(format!("@{}", args_file.to_string_lossy()));
+            cmd.current_dir(paths::game_dir());
+            cmd.status()?;
+            server.stop();
+        }
+        LaunchMode::NewTerminal => {
+            let mut cmd = Command::new("konsole");
+            cmd.arg("-e").arg("java").arg(format!("@{}", args_file.to_string_lossy()));
+            cmd.current_dir(paths::game_dir());
+            cmd.spawn()?;
+            std::mem::forget(server);
+        }
+    }
 
     Ok(())
 }
