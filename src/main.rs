@@ -8,6 +8,7 @@ mod ui;
 mod versions;
 mod skin_view;
 mod skin_server;
+mod window;
 
 
 use std::io;

@@ -298,7 +298,9 @@ pub fn run(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>) -> Result<()> 
             if app.launch_mode == launcher::LaunchMode::InPlace {
                 disable_raw_mode()?;
                 execute!(terminal.backend_mut(), LeaveAlternateScreen, DisableBracketedPaste)?;
+                let win = crate::window::hide_current();
                 let result = launcher::launch(&id, &username, &uuid, launcher::LaunchMode::InPlace);
+                crate::window::restore(win);
                 enable_raw_mode()?;
                 execute!(terminal.backend_mut(), EnterAlternateScreen, EnableBracketedPaste)?;
                 terminal.clear()?;
@@ -307,7 +309,8 @@ pub fn run(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>) -> Result<()> 
                     Err(e) => format!("launch error: {e}"),
                 };
             } else {
-                app.status = match launcher::launch(&id, &username, &uuid, launcher::LaunchMode::NewTerminal) {
+                let win = crate::window::hide_current();
+                app.status = match launcher::launch_tracked(&id, &username, &uuid, win) {
                     Ok(()) => format!("launched {id} in new terminal"),
                     Err(e) => format!("launch error: {e}"),
                 };
