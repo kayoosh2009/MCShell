@@ -37,6 +37,6 @@ pub fn private_key_file() -> PathBuf {
     data_dir().join("skin_key.pem")
 }
 
-pub fn public_key_der_file() -> PathBuf {
-    data_dir().join("skin_key_pub.der")
+pub fn public_key_pem_file() -> PathBuf {
+    data_dir().join("skin_key_pub.pem")
 }

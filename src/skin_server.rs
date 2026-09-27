@@ -18,7 +18,7 @@ pub fn ensure_authlib_injector() -> Result<()> {
 
 fn ensure_keypair() -> Result<()> {
     let priv_path = paths::private_key_file();
-    let pub_path = paths::public_key_der_file();
+    let pub_path = paths::public_key_pem_file();
     if priv_path.is_file() && pub_path.is_file() {
         return Ok(());
     }
@@ -31,7 +31,7 @@ fn ensure_keypair() -> Result<()> {
     }
     let pub_out = std::process::Command::new("openssl")
         .arg("rsa").arg("-in").arg(&priv_path)
-        .arg("-pubout").arg("-outform").arg("DER").arg("-out").arg(&pub_path)
+        .arg("-pubout").arg("-outform").arg("PEM").arg("-out").arg(&pub_path)
         .output()?;
     if !pub_out.status.success() {
         anyhow::bail!("openssl rsa -pubout failed: {}", String::from_utf8_lossy(&pub_out.stderr));
@@ -39,9 +39,9 @@ fn ensure_keypair() -> Result<()> {
     Ok(())
 }
 
-fn public_key_base64() -> Result<String> {
-    let bytes = std::fs::read(paths::public_key_der_file())?;
-    Ok(base64::engine::general_purpose::STANDARD.encode(bytes))
+fn public_key_pem_escaped() -> Result<String> {
+    let pem = std::fs::read_to_string(paths::public_key_pem_file())?;
+    Ok(pem.trim_end().replace('\n', "\\n"))
 }
 
 fn sign(data: &[u8]) -> Result<String> {
@@ -103,7 +103,7 @@ fn handle_connection(mut stream: TcpStream, username: &str, uuid: &str, port: u1
         let body = profile_json(username, uuid, port);
         write_response(&mut stream, "application/json", body.as_bytes())?;
     } else {
-        let pubkey = public_key_base64().unwrap_or_default();
+        let pubkey = public_key_pem_escaped().unwrap_or_default();
         let body = format!(
             r#"{{"meta":{{"serverName":"MCShell","implementationName":"mcshell","implementationVersion":"0.1.0"}},"skinDomains":["127.0.0.1"],"signaturePublickey":"{pubkey}"}}"#
         );
