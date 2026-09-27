@@ -4,7 +4,9 @@ use std::sync::mpsc::{self, Receiver, TryRecvError};
 use std::time::Duration;
 
 use anyhow::Result;
-use crossterm::event::{self, Event, KeyCode, KeyEventKind};
+use crossterm::event::{self, DisableBracketedPaste, EnableBracketedPaste, Event, KeyCode, KeyEventKind};
+use crossterm::execute;
+use crossterm::terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen};
 use ratatui::backend::CrosstermBackend;
 use ratatui::Terminal;
 
@@ -77,6 +79,8 @@ impl App {
             remote_versions: Vec::new(),
             list_index: 0,
             last_vanilla: None,
+            launch_mode: launcher::LaunchMode::NewTerminal,
+            pending_launch: None,
             progress_rx: None,
         }
     }
@@ -213,13 +217,15 @@ impl App {
                 KeyCode::Up if self.current_tab == Tab::Launch && !self.installed.is_empty() => {
                     self.list_index = (self.list_index + self.installed.len() - 1) % self.installed.len();
                 }
+                KeyCode::Char('1') if self.current_tab == Tab::Launch => {
+                    self.launch_mode = launcher::LaunchMode::InPlace;
+                }
+                KeyCode::Char('2') if self.current_tab == Tab::Launch => {
+                    self.launch_mode = launcher::LaunchMode::NewTerminal;
+                }
                 KeyCode::Enter if self.current_tab == Tab::Launch => {
                     if let Some(id) = self.installed.get(self.list_index).cloned() {
-                        let uuid = self.profile.offline_uuid();
-                        match launcher::launch(&id, &self.profile.username, &uuid) {
-                            Ok(()) => self.status = format!("launched {id}"),
-                            Err(e) => self.status = format!("launch error: {e}"),
-                        }
+                        self.pending_launch = Some(id);
                     }
                 }
                 _ => {}
@@ -281,6 +287,28 @@ pub fn run(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>) -> Result<()> 
                 Event::Key(key) if key.kind == KeyEventKind::Press => app.handle_key(key.code),
                 Event::Paste(text) => app.handle_paste(text),
                 _ => {}
+            }
+        }
+
+        if let Some(id) = app.pending_launch.take() {
+            let uuid = app.profile.offline_uuid();
+            let username = app.profile.username.clone();
+            if app.launch_mode == launcher::LaunchMode::InPlace {
+                disable_raw_mode()?;
+                execute!(terminal.backend_mut(), LeaveAlternateScreen, DisableBracketedPaste)?;
+                let result = launcher::launch(&id, &username, &uuid, launcher::LaunchMode::InPlace);
+                enable_raw_mode()?;
+                execute!(terminal.backend_mut(), EnterAlternateScreen, EnableBracketedPaste)?;
+                terminal.clear()?;
+                app.status = match result {
+                    Ok(()) => format!("launched {id}"),
+                    Err(e) => format!("launch error: {e}"),
+                };
+            } else {
+                app.status = match launcher::launch(&id, &username, &uuid, launcher::LaunchMode::NewTerminal) {
+                    Ok(()) => format!("launched {id} in new terminal"),
+                    Err(e) => format!("launch error: {e}"),
+                };
             }
         }
 
