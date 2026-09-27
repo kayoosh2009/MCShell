@@ -42,7 +42,7 @@ pub fn installed_versions() -> Vec<String> {
     out
 }
 
-fn download_to(url: &str, dest: &PathBuf) -> Result<()> {
+pub(crate) fn download_to(url: &str, dest: &PathBuf) -> Result<()> {
     if dest.is_file() {
         return Ok(());
     }
