@@ -9,12 +9,6 @@ use crate::paths;
 use crate::skin_server;
 use crate::versions::library_allowed;
 
-#[derive(Clone, Copy, PartialEq, Eq)]
-pub enum LaunchMode {
-    InPlace,
-    NewTerminal,
-}
-
 fn load_version_json(id: &str) -> Result<Value> {
     let path = paths::versions_dir().join(id).join(format!("{id}.json"));
     Ok(serde_json::from_slice(&fs::read(&path)?)?)
@@ -177,15 +171,7 @@ fn resolve(id: &str) -> Result<Resolved> {
     })
 }
 
-pub fn launch_tracked(id: &str, username: &str, uuid: &str, win: Option<String>) -> Result<()> {
-    launch_inner(id, username, uuid, LaunchMode::NewTerminal, win)
-}
-
-pub fn launch(id: &str, username: &str, uuid: &str, mode: LaunchMode) -> Result<()> {
-    launch_inner(id, username, uuid, mode, None)
-}
-
-fn launch_inner(id: &str, username: &str, uuid: &str, mode: LaunchMode, win: Option<String>) -> Result<()> {
+pub fn launch(id: &str, username: &str, uuid: &str, show_logs_separate: bool, win: Option<String>) -> Result<()> {
     let resolved = resolve(id)?;
     fs::create_dir_all(paths::game_dir())?;
 
@@ -237,25 +223,23 @@ fn launch_inner(id: &str, username: &str, uuid: &str, mode: LaunchMode, win: Opt
     let args_content = java_args.join("\n");
     fs::write(&args_file, &args_content)?;
 
-    match mode {
-        LaunchMode::InPlace => {
-            let mut cmd = Command::new("java");
-            cmd.arg(format!("@{}", args_file.to_string_lossy()));
-            cmd.current_dir(paths::game_dir());
-            cmd.status()?;
+    if show_logs_separate {
+        let mut cmd = Command::new("konsole");
+        cmd.arg("-e").arg("java").arg(format!("@{}", args_file.to_string_lossy()));
+        cmd.current_dir(paths::game_dir());
+        let mut child = cmd.spawn()?;
+        std::thread::spawn(move || {
+            let _ = child.wait();
             server.stop();
-        }
-        LaunchMode::NewTerminal => {
-            let mut cmd = Command::new("konsole");
-            cmd.arg("-e").arg("java").arg(format!("@{}", args_file.to_string_lossy()));
-            cmd.current_dir(paths::game_dir());
-            let mut child = cmd.spawn()?;
-            std::thread::spawn(move || {
-                let _ = child.wait();
-                server.stop();
-                crate::window::restore(win);
-            });
-        }
+            crate::window::restore(win);
+        });
+    } else {
+        let mut cmd = Command::new("java");
+        cmd.arg(format!("@{}", args_file.to_string_lossy()));
+        cmd.current_dir(paths::game_dir());
+        cmd.status()?;
+        server.stop();
+        crate::window::restore(win);
     }
 
     Ok(())

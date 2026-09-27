@@ -80,13 +80,12 @@ pub fn draw(f: &mut Frame, app: &App) {
         },
         Tab::Worlds => "World list, export and import will show here.".to_string(),
         Tab::Launch => {
-            let (c1, c2) = match app.launch_mode {
-                crate::launcher::LaunchMode::InPlace => ("[x]", "[ ]"),
-                crate::launcher::LaunchMode::NewTerminal => ("[ ]", "[x]"),
-            };
+            let c1 = if app.hide_after_launch { "[x]" } else { "[ ]" };
+            let c2 = if app.show_logs_separate { "[x]" } else { "[ ]" };
             let mut lines = vec![
                 "up/down: select, enter: launch, d: delete".to_string(),
-                format!("1:{c1} show terminal after launch   2:{c2} show logs in separate terminal"),
+                format!("1:{c1} hide launcher after launch"),
+                format!("2:{c2} show logs in separate terminal"),
                 String::new(),
             ];
             for (i, v) in app.installed.iter().enumerate() {
