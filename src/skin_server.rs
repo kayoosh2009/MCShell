@@ -23,13 +23,19 @@ fn ensure_keypair() -> Result<()> {
         return Ok(());
     }
     std::fs::create_dir_all(paths::data_dir())?;
-    std::process::Command::new("openssl")
-        .arg("genrsa").arg("-out").arg(&priv_path).arg("2048")
+    let gen = std::process::Command::new("openssl")
+        .arg("genrsa").arg("-out").arg(&priv_path).arg("4096")
         .output()?;
-    std::process::Command::new("openssl")
+    if !gen.status.success() {
+        anyhow::bail!("openssl genrsa failed: {}", String::from_utf8_lossy(&gen.stderr));
+    }
+    let pub_out = std::process::Command::new("openssl")
         .arg("rsa").arg("-in").arg(&priv_path)
         .arg("-pubout").arg("-outform").arg("DER").arg("-out").arg(&pub_path)
         .output()?;
+    if !pub_out.status.success() {
+        anyhow::bail!("openssl rsa -pubout failed: {}", String::from_utf8_lossy(&pub_out.stderr));
+    }
     Ok(())
 }
 
