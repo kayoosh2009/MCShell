@@ -10,8 +10,8 @@ mod skin_view;
 mod skin_server;
 mod window;
 mod mods;
+mod packs;
 mod worlds;
-
 
 use std::io;
 

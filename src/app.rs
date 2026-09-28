@@ -10,26 +10,28 @@ use ratatui::backend::CrosstermBackend;
 use ratatui::Terminal;
 
 use crate::profile::Profile;
-use crate::{fabric, launcher, mods, paths, skin, ui, versions, window, worlds};
+use crate::{fabric, launcher, mods, packs, paths, skin, ui, versions, window, worlds};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum Tab {
     Profile,
     Versions,
     Mods,
+    Textures,
     Skins,
     Worlds,
     Launch,
 }
 
 impl Tab {
-    pub const ALL: [Tab; 6] = [Tab::Profile, Tab::Versions, Tab::Mods, Tab::Skins, Tab::Worlds, Tab::Launch];
+    pub const ALL: [Tab; 7] = [Tab::Profile, Tab::Versions, Tab::Mods, Tab::Textures, Tab::Skins, Tab::Worlds, Tab::Launch];
 
     pub fn title(&self) -> &'static str {
         match self {
             Tab::Profile => "Profile",
             Tab::Versions => "Versions",
             Tab::Mods => "Mods",
+            Tab::Textures => "Textures",
             Tab::Skins => "Skins",
             Tab::Worlds => "Worlds",
             Tab::Launch => "Launch",
@@ -45,6 +47,13 @@ pub enum InputMode {
     Normal,
     EditingUsername,
     EditingVersion,
+    ConfirmDelete,
+}
+
+pub enum DeleteTarget {
+    Version(String),
+    Mod(mods::ModEntry),
+    Pack(String),
 }
 
 pub struct App {
@@ -61,7 +70,9 @@ pub struct App {
     pub list_index: usize,
     pub last_vanilla: Option<String>,
     pub mods: Vec<mods::ModEntry>,
+    pub packs: Vec<String>,
     pub worlds: Vec<String>,
+    pending_delete: Option<DeleteTarget>,
     pub hide_after_launch: bool,
     pub show_logs_separate: bool,
     pending_launch: Option<String>,
@@ -84,7 +95,9 @@ impl App {
             list_index: 0,
             last_vanilla: None,
             mods: mods::list(),
+            packs: packs::list(),
             worlds: worlds::list(),
+            pending_delete: None,
             hide_after_launch: false,
             show_logs_separate: true,
             pending_launch: None,
@@ -108,6 +121,7 @@ impl App {
     fn on_tab_change(&mut self) {
         self.list_index = 0;
         self.mods = mods::list();
+        self.packs = packs::list();
         self.worlds = worlds::list();
     }
 
@@ -170,6 +184,50 @@ impl App {
         }
     }
 
+    fn ask_delete(&mut self, target: DeleteTarget, label: &str) {
+        self.pending_delete = Some(target);
+        self.input_mode = InputMode::ConfirmDelete;
+        self.status = format!("Delete {label}? (y/n)");
+    }
+
+    fn confirm_delete(&mut self) {
+        let Some(target) = self.pending_delete.take() else { return };
+        self.input_mode = InputMode::Normal;
+        match target {
+            DeleteTarget::Version(id) => match versions::delete_version(&id) {
+                Ok(()) => {
+                    self.status = format!("deleted {id}");
+                    self.progress_log.clear();
+                    self.installed = versions::installed_versions();
+                    if self.list_index >= self.installed.len() && self.list_index > 0 {
+                        self.list_index -= 1;
+                    }
+                }
+                Err(e) => self.status = format!("delete error: {e}"),
+            },
+            DeleteTarget::Mod(m) => {
+                self.status = match mods::remove(&m) {
+                    Ok(()) => format!("removed {}", m.name),
+                    Err(e) => format!("remove error: {e}"),
+                };
+                self.mods = mods::list();
+                if self.list_index >= self.mods.len() && self.list_index > 0 {
+                    self.list_index -= 1;
+                }
+            }
+            DeleteTarget::Pack(name) => {
+                self.status = match packs::remove(&name) {
+                    Ok(()) => format!("removed {name}"),
+                    Err(e) => format!("remove error: {e}"),
+                };
+                self.packs = packs::list();
+                if self.list_index >= self.packs.len() && self.list_index > 0 {
+                    self.list_index -= 1;
+                }
+            }
+        }
+    }
+
     fn handle_key(&mut self, code: KeyCode) {
         match self.input_mode {
             InputMode::Normal => match code {
@@ -200,18 +258,7 @@ impl App {
                 }
                 KeyCode::Char('d') | KeyCode::Delete if self.current_tab == Tab::Launch && !self.installed.is_empty() => {
                     let id = self.installed[self.list_index].clone();
-                    match versions::delete_version(&id) {
-                        Ok(()) => {
-                            self.status = format!("deleted {id}");
-                            self.progress_log.clear();
-                            self.installed = versions::installed_versions();
-                            // Корректируем индекс, если удалили последний элемент
-                            if self.list_index >= self.installed.len() && self.list_index > 0 {
-                                self.list_index -= 1;
-                            }
-                        }
-                        Err(e) => self.status = format!("delete error: {e}"),
-                    }
+                    self.ask_delete(DeleteTarget::Version(id.clone()), &id);
                 }
                 KeyCode::Down if self.current_tab == Tab::Versions && !self.remote_versions.is_empty() => {
                     self.list_index = (self.list_index + 1) % self.remote_versions.len();
@@ -260,14 +307,8 @@ impl App {
                 }
                 KeyCode::Char('d') | KeyCode::Delete if self.current_tab == Tab::Mods => {
                     if let Some(m) = self.mods.get(self.list_index).cloned() {
-                        self.status = match mods::remove(&m) {
-                            Ok(()) => format!("removed {}", m.name),
-                            Err(e) => format!("remove error: {e}"),
-                        };
-                        self.mods = mods::list();
-                        if self.list_index >= self.mods.len() && self.list_index > 0 {
-                            self.list_index -= 1;
-                        }
+                        let label = m.name.clone();
+                        self.ask_delete(DeleteTarget::Mod(m), &label);
                     }
                 }
                 KeyCode::Char('o') if self.current_tab == Tab::Mods => {
@@ -289,6 +330,20 @@ impl App {
                 }
                 KeyCode::Char('o') if self.current_tab == Tab::Worlds => {
                     window::open_folder(&paths::saves_dir());
+                }
+                KeyCode::Down if self.current_tab == Tab::Textures && !self.packs.is_empty() => {
+                    self.list_index = (self.list_index + 1) % self.packs.len();
+                }
+                KeyCode::Up if self.current_tab == Tab::Textures && !self.packs.is_empty() => {
+                    self.list_index = (self.list_index + self.packs.len() - 1) % self.packs.len();
+                }
+                KeyCode::Char('d') | KeyCode::Delete if self.current_tab == Tab::Textures => {
+                    if let Some(name) = self.packs.get(self.list_index).cloned() {
+                        self.ask_delete(DeleteTarget::Pack(name.clone()), &name);
+                    }
+                }
+                KeyCode::Char('o') if self.current_tab == Tab::Textures => {
+                    window::open_folder(&paths::packs_dir());
                 }
                 _ => {}
             },
