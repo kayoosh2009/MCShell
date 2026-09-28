@@ -1,6 +1,6 @@
 use std::io;
 use std::sync::mpsc::{self, Receiver, TryRecvError};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use anyhow::Result;
 use crossterm::event::{self, DisableBracketedPaste, EnableBracketedPaste, Event, KeyCode, KeyEventKind};
@@ -10,7 +10,7 @@ use ratatui::backend::CrosstermBackend;
 use ratatui::Terminal;
 
 use crate::profile::Profile;
-use crate::{fabric, launcher, mods, packs, paths, skin, ui, versions, window, worlds};
+use crate::{browse, fabric, launcher, mods, packs, paths, skin, ui, versions, window, worlds};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum Tab {
@@ -72,6 +72,8 @@ pub struct App {
     pub mods: Vec<mods::ModEntry>,
     pub packs: Vec<String>,
     pub worlds: Vec<String>,
+    pub browse_launch: Option<(Instant, String)>,
+    browse: Option<browse::BrowseServer>,
     pending_delete: Option<DeleteTarget>,
     pub hide_after_launch: bool,
     pub show_logs_separate: bool,
@@ -97,6 +99,8 @@ impl App {
             mods: mods::list(),
             packs: packs::list(),
             worlds: worlds::list(),
+            browse_launch: None,
+            browse: None,
             pending_delete: None,
             hide_after_launch: false,
             show_logs_separate: true,
@@ -228,7 +232,52 @@ impl App {
         }
     }
 
+    fn start_browse(&mut self) {
+        if self.browse.is_none() {
+            match browse::start() {
+                Ok(s) => self.browse = Some(s),
+                Err(e) => {
+                    self.status = format!("browser error: {e}");
+                    return;
+                }
+            }
+        }
+        let kind = if self.current_tab == Tab::Textures { "resourcepack" } else { "mod" };
+        if let Some(s) = &self.browse {
+            self.browse_launch = Some((Instant::now(), s.url(kind)));
+        }
+    }
+
+    fn poll_browse(&mut self) {
+        if let Some(s) = &self.browse {
+            let mut changed = false;
+            while let Ok(msg) = s.events.try_recv() {
+                self.status = msg;
+                changed = true;
+            }
+            if changed {
+                self.mods = mods::list();
+                self.packs = packs::list();
+            }
+        }
+        let ready = self
+            .browse_launch
+            .as_ref()
+            .filter(|(t, _)| t.elapsed() >= Duration::from_secs(3))
+            .map(|(_, u)| u.clone());
+        if let Some(url) = ready {
+            window::open_url(&url);
+            self.browse_launch = None;
+            self.status = format!("browser: {url}");
+        }
+    }
+
     fn handle_key(&mut self, code: KeyCode) {
+        if self.browse_launch.is_some() {
+            self.browse_launch = None;
+            self.status = "cancelled".to_string();
+            return;
+        }
         match self.input_mode {
             InputMode::Normal => match code {
                 KeyCode::Char('q') | KeyCode::Esc => self.should_quit = true,
@@ -313,6 +362,9 @@ impl App {
                 }
                 KeyCode::Char('o') if self.current_tab == Tab::Mods => {
                     window::open_folder(&paths::mods_dir());
+                }
+                KeyCode::Char('b') if matches!(self.current_tab, Tab::Mods | Tab::Textures) => {
+                    self.start_browse();
                 }
                 KeyCode::Down if self.current_tab == Tab::Worlds && !self.worlds.is_empty() => {
                     self.list_index = (self.list_index + 1) % self.worlds.len();
@@ -426,6 +478,7 @@ pub fn run(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>) -> Result<()> 
     let mut app = App::new();
     loop {
         app.poll_progress();
+        app.poll_browse();
         terminal.draw(|f| ui::draw(f, &app))?;
 
         if event::poll(Duration::from_millis(200))? {

@@ -9,6 +9,8 @@ mod versions;
 mod skin_view;
 mod skin_server;
 mod window;
+mod art;
+mod browse;
 mod mods;
 mod packs;
 mod worlds;
