@@ -1,4 +1,4 @@
-use ratatui::layout::{Constraint, Direction, Layout};
+use ratatui::layout::{Alignment, Constraint, Direction, Layout};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Paragraph, Tabs};
@@ -7,6 +7,11 @@ use ratatui::Frame;
 use crate::app::{App, InputMode, Tab};
 
 pub fn draw(f: &mut Frame, app: &App) {
+    if let Some((start, _)) = &app.browse_launch {
+        draw_browse_splash(f, start.elapsed().as_secs());
+        return;
+    }
+
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([Constraint::Length(3), Constraint::Min(0), Constraint::Length(1)])
@@ -47,7 +52,7 @@ pub fn draw(f: &mut Frame, app: &App) {
         Tab::Mods => {
             let mut lines = vec![
                 "drop a .jar on the window to add".to_string(),
-                "up/down: select  space: on/off  d: delete  o: open folder".to_string(),
+                "up/down: select  space: on/off  d: delete  o: open folder  b: browse online".to_string(),
                 String::new(),
             ];
             if app.mods.is_empty() {
@@ -96,7 +101,7 @@ pub fn draw(f: &mut Frame, app: &App) {
         Tab::Textures => {
             let mut lines = vec![
                 "drop a .zip on the window to add".to_string(),
-                "up/down: select  d: delete  o: open folder".to_string(),
+                "up/down: select  d: delete  o: open folder  b: browse online".to_string(),
                 "enable packs in game: Options > Resource Packs".to_string(),
                 String::new(),
             ];
@@ -172,4 +177,18 @@ pub fn draw(f: &mut Frame, app: &App) {
         Style::default()
     };
     f.render_widget(Paragraph::new(app.status.as_str()).style(status_style), chunks[2]);
+}
+
+fn draw_browse_splash(f: &mut Frame, elapsed: u64) {
+    let left = 3u64.saturating_sub(elapsed).max(1);
+    let mut lines: Vec<Line> = crate::art::ART.lines().map(|l| Line::from(l.to_string())).collect();
+    lines.push(Line::from(""));
+    lines.push(Line::from(format!("Opening browser in {left}...")));
+    lines.push(Line::from("press any key to cancel"));
+    f.render_widget(
+        Paragraph::new(lines)
+            .alignment(Alignment::Center)
+            .block(Block::default().borders(Borders::ALL).title("Browse")),
+        f.size(),
+    );
 }

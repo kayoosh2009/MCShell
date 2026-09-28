@@ -30,3 +30,11 @@ pub fn open_folder(path: &std::path::Path) {
         .stderr(std::process::Stdio::null())
         .spawn();
 }
+
+pub fn open_url(url: &str) {
+    let _ = Command::new("xdg-open")
+        .arg(url)
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .spawn();
+}
