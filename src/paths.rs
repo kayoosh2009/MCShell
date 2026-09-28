@@ -58,3 +58,7 @@ pub fn clean_path(text: &str) -> PathBuf {
     let t = t.strip_prefix("file://").unwrap_or(t);
     PathBuf::from(t.replace("\\ ", " "))
 }
+
+pub fn packs_dir() -> PathBuf {
+    game_dir().join("resourcepacks")
+}
