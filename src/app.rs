@@ -1,5 +1,4 @@
 use std::io;
-use std::path::PathBuf;
 use std::sync::mpsc::{self, Receiver, TryRecvError};
 use std::time::Duration;
 
@@ -11,7 +10,7 @@ use ratatui::backend::CrosstermBackend;
 use ratatui::Terminal;
 
 use crate::profile::Profile;
-use crate::{fabric, launcher, skin, ui, versions};
+use crate::{fabric, launcher, mods, paths, skin, ui, versions, window, worlds};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum Tab {
@@ -61,6 +60,8 @@ pub struct App {
     pub remote_versions: Vec<versions::VersionEntry>,
     pub list_index: usize,
     pub last_vanilla: Option<String>,
+    pub mods: Vec<mods::ModEntry>,
+    pub worlds: Vec<String>,
     pub hide_after_launch: bool,
     pub show_logs_separate: bool,
     pending_launch: Option<String>,
@@ -82,6 +83,8 @@ impl App {
             remote_versions: Vec::new(),
             list_index: 0,
             last_vanilla: None,
+            mods: mods::list(),
+            worlds: worlds::list(),
             hide_after_launch: false,
             show_logs_separate: true,
             pending_launch: None,
@@ -92,12 +95,20 @@ impl App {
     fn next_tab(&mut self) {
         let i = (self.current_tab.index() + 1) % Tab::ALL.len();
         self.current_tab = Tab::ALL[i];
+        self.on_tab_change();
     }
 
     fn prev_tab(&mut self) {
         let len = Tab::ALL.len();
         let i = (self.current_tab.index() + len - 1) % len;
         self.current_tab = Tab::ALL[i];
+        self.on_tab_change();
+    }
+
+    fn on_tab_change(&mut self) {
+        self.list_index = 0;
+        self.mods = mods::list();
+        self.worlds = worlds::list();
     }
 
     fn spawn_version_install(&mut self, id: String) {
@@ -232,6 +243,53 @@ impl App {
                         self.pending_launch = Some(id);
                     }
                 }
+                KeyCode::Down if self.current_tab == Tab::Mods && !self.mods.is_empty() => {
+                    self.list_index = (self.list_index + 1) % self.mods.len();
+                }
+                KeyCode::Up if self.current_tab == Tab::Mods && !self.mods.is_empty() => {
+                    self.list_index = (self.list_index + self.mods.len() - 1) % self.mods.len();
+                }
+                KeyCode::Char(' ') if self.current_tab == Tab::Mods => {
+                    if let Some(m) = self.mods.get(self.list_index).cloned() {
+                        self.status = match mods::toggle(&m) {
+                            Ok(()) => format!("toggled {}", m.name),
+                            Err(e) => format!("toggle error: {e}"),
+                        };
+                        self.mods = mods::list();
+                    }
+                }
+                KeyCode::Char('d') | KeyCode::Delete if self.current_tab == Tab::Mods => {
+                    if let Some(m) = self.mods.get(self.list_index).cloned() {
+                        self.status = match mods::remove(&m) {
+                            Ok(()) => format!("removed {}", m.name),
+                            Err(e) => format!("remove error: {e}"),
+                        };
+                        self.mods = mods::list();
+                        if self.list_index >= self.mods.len() && self.list_index > 0 {
+                            self.list_index -= 1;
+                        }
+                    }
+                }
+                KeyCode::Char('o') if self.current_tab == Tab::Mods => {
+                    window::open_folder(&paths::mods_dir());
+                }
+                KeyCode::Down if self.current_tab == Tab::Worlds && !self.worlds.is_empty() => {
+                    self.list_index = (self.list_index + 1) % self.worlds.len();
+                }
+                KeyCode::Up if self.current_tab == Tab::Worlds && !self.worlds.is_empty() => {
+                    self.list_index = (self.list_index + self.worlds.len() - 1) % self.worlds.len();
+                }
+                KeyCode::Char('e') if self.current_tab == Tab::Worlds => {
+                    if let Some(name) = self.worlds.get(self.list_index).cloned() {
+                        self.status = match worlds::export(&name) {
+                            Ok(p) => format!("exported to {}", p.display()),
+                            Err(e) => format!("export error: {e}"),
+                        };
+                    }
+                }
+                KeyCode::Char('o') if self.current_tab == Tab::Worlds => {
+                    window::open_folder(&paths::saves_dir());
+                }
                 _ => {}
             },
             InputMode::EditingUsername => match code {
@@ -266,16 +324,30 @@ impl App {
     }
 
     fn handle_paste(&mut self, text: String) {
-        if self.current_tab != Tab::Skins {
-            return;
-        }
-        let path = PathBuf::from(text.trim());
-        match skin::set_skin(&path) {
-            Ok(dest) => {
-                self.has_skin = true;
-                self.status = format!("skin saved: {}", dest.display());
+        let path = paths::clean_path(&text);
+        match self.current_tab {
+            Tab::Skins => match skin::set_skin(&path) {
+                Ok(dest) => {
+                    self.has_skin = true;
+                    self.status = format!("skin saved: {}", dest.display());
+                }
+                Err(e) => self.status = format!("skin error: {e}"),
+            },
+            Tab::Mods => {
+                self.status = match mods::add(&path) {
+                    Ok(name) => format!("added {name}"),
+                    Err(e) => format!("add error: {e}"),
+                };
+                self.mods = mods::list();
             }
-            Err(e) => self.status = format!("skin error: {e}"),
+            Tab::Worlds => {
+                self.status = match worlds::import(&path) {
+                    Ok(name) => format!("imported world {name}"),
+                    Err(e) => format!("import error: {e}"),
+                };
+                self.worlds = worlds::list();
+            }
+            _ => {}
         }
     }
 }

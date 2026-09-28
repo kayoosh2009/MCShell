@@ -44,7 +44,22 @@ pub fn draw(f: &mut Frame, app: &App) {
             }
             lines.join("\n")
         }
-        Tab::Mods => "Mod list, toggle and remove will show here.".to_string(),
+        Tab::Mods => {
+            let mut lines = vec![
+                "drop a .jar on the window to add".to_string(),
+                "up/down: select  space: on/off  d: delete  o: open folder".to_string(),
+                String::new(),
+            ];
+            if app.mods.is_empty() {
+                lines.push("no mods yet".to_string());
+            }
+            for (i, m) in app.mods.iter().enumerate() {
+                let marker = if i == app.list_index { ">" } else { " " };
+                let check = if m.enabled { "[x]" } else { "[ ]" };
+                lines.push(format!("{marker} {check} {}", m.name));
+            }
+            lines.join("\n")
+        }
         Tab::Skins => {
             // Сначала получаем текст
             let text = format!(
@@ -78,7 +93,21 @@ pub fn draw(f: &mut Frame, app: &App) {
             
             text  // возвращаем текст для обычного рендеринга (если нет скина)
         },
-        Tab::Worlds => "World list, export and import will show here.".to_string(),
+        Tab::Worlds => {
+            let mut lines = vec![
+                "drop a .zip on the window to import".to_string(),
+                "up/down: select  e: export to home folder  o: open folder".to_string(),
+                String::new(),
+            ];
+            if app.worlds.is_empty() {
+                lines.push("no worlds yet".to_string());
+            }
+            for (i, w) in app.worlds.iter().enumerate() {
+                let marker = if i == app.list_index { ">" } else { " " };
+                lines.push(format!("{marker} {w}"));
+            }
+            lines.join("\n")
+        }
         Tab::Launch => {
             let c1 = if app.hide_after_launch { "[x]" } else { "[ ]" };
             let c2 = if app.show_logs_separate { "[x]" } else { "[ ]" };
