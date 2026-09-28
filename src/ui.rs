@@ -93,6 +93,22 @@ pub fn draw(f: &mut Frame, app: &App) {
             
             text  // возвращаем текст для обычного рендеринга (если нет скина)
         },
+        Tab::Textures => {
+            let mut lines = vec![
+                "drop a .zip on the window to add".to_string(),
+                "up/down: select  d: delete  o: open folder".to_string(),
+                "enable packs in game: Options > Resource Packs".to_string(),
+                String::new(),
+            ];
+            if app.packs.is_empty() {
+                lines.push("no texture packs yet".to_string());
+            }
+            for (i, p) in app.packs.iter().enumerate() {
+                let marker = if i == app.list_index { ">" } else { " " };
+                lines.push(format!("{marker} {p}"));
+            }
+            lines.join("\n")
+        }
         Tab::Worlds => {
             let mut lines = vec![
                 "drop a .zip on the window to import".to_string(),
@@ -150,5 +166,10 @@ pub fn draw(f: &mut Frame, app: &App) {
     }
 
     // 3. Статус бар рисуется ВСЕГДА, независимо от вкладки
-    f.render_widget(Paragraph::new(app.status.as_str()), chunks[2]);
+    let status_style = if matches!(app.input_mode, InputMode::ConfirmDelete) {
+        Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)
+    } else {
+        Style::default()
+    };
+    f.render_widget(Paragraph::new(app.status.as_str()).style(status_style), chunks[2]);
 }
