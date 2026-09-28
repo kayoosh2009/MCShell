@@ -1,1 +1,122 @@
-<!doctype html><meta charset="utf-8"><title>MCShell</title><pre>MCShell browser: coming soon</pre>
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MCShell browser</title>
+<style>
+  :root { --bg:#0d1117; --fg:#c9d1d9; --green:#3fb950; --dim:#8b949e; --line:#30363d; }
+  * { box-sizing: border-box; }
+  body { margin:0; padding:24px; background:var(--bg); color:var(--fg);
+         font:14px/1.5 ui-monospace, "JetBrains Mono", "Fira Code", monospace; }
+  main { max-width: 820px; margin: 0 auto; }
+  h1 { margin:0 0 4px; color:var(--green); font-size:18px; }
+  #info { color:var(--dim); margin-bottom:16px; }
+  form { display:flex; gap:8px; margin-bottom:16px; }
+  input { flex:1; padding:8px 10px; background:var(--bg); color:var(--fg);
+          border:1px solid var(--line); font:inherit; outline:none; }
+  input:focus { border-color:var(--green); }
+  button { padding:8px 14px; background:var(--bg); color:var(--green);
+           border:1px solid var(--green); font:inherit; cursor:pointer; }
+  button:hover { background:var(--green); color:var(--bg); }
+  button:disabled { color:var(--dim); border-color:var(--line); cursor:default; background:var(--bg); }
+  .item { display:flex; gap:12px; padding:12px; border:1px solid var(--line); margin-bottom:8px; }
+  .item img { width:48px; height:48px; image-rendering:pixelated; background:var(--line); flex:none; }
+  .body { flex:1; min-width:0; }
+  .title { color:var(--green); }
+  .desc { color:var(--dim); margin:2px 0; overflow-wrap:anywhere; }
+  .meta { color:var(--dim); font-size:12px; }
+  #msg { color:var(--dim); padding:8px 0; }
+</style>
+</head>
+<body>
+<main>
+  <h1>&gt; MCShell browser<span id="kind"></span></h1>
+  <div id="info">loading...</div>
+  <form id="form">
+    <input id="q" placeholder="search..." autocomplete="off" autofocus>
+    <button>search</button>
+  </form>
+  <div id="msg"></div>
+  <div id="list"></div>
+</main>
+<script>
+const params = new URLSearchParams(location.search);
+const token = params.get("t");
+const kind = params.get("kind") === "resourcepack" ? "resourcepack" : "mod";
+const $ = (id) => document.getElementById(id);
+
+$("kind").textContent = kind === "mod" ? " / mods" : " / texture packs";
+
+function api(path, extra = {}, method = "GET") {
+  const p = new URLSearchParams({ t: token, kind, ...extra });
+  return fetch(`${path}?${p}`, { method }).then((r) => r.json());
+}
+
+function el(tag, cls, text) {
+  const e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (text !== undefined) e.textContent = text;
+  return e;
+}
+
+function render(hits) {
+  const list = $("list");
+  list.replaceChildren();
+  $("msg").textContent = hits.length ? "" : "nothing found";
+  for (const h of hits) {
+    const item = el("div", "item");
+    const img = el("img");
+    if (h.icon_url) img.src = h.icon_url;
+    img.alt = "";
+
+    const body = el("div", "body");
+    body.append(
+      el("div", "title", h.title),
+      el("div", "desc", h.description),
+      el("div", "meta", `by ${h.author} | ${h.downloads.toLocaleString()} downloads`)
+    );
+
+    const btn = el("button", "", "install");
+    btn.onclick = async () => {
+      btn.disabled = true;
+      btn.textContent = "installing...";
+      try {
+        const r = await api("/api/install", { id: h.project_id }, "POST");
+        btn.textContent = r.ok ? "installed" : "failed";
+        $("msg").textContent = r.ok ? `installed: ${r.files.join(", ")}` : `error: ${r.error}`;
+      } catch {
+        btn.textContent = "failed";
+        $("msg").textContent = "error: launcher not reachable";
+      }
+    };
+
+    item.append(img, body, btn);
+    list.append(item);
+  }
+}
+
+async function search(query) {
+  $("msg").textContent = "searching...";
+  try {
+    const r = await api("/api/search", { q: query });
+    if (r.error) throw new Error(r.error);
+    render(r.hits || []);
+  } catch (e) {
+    $("list").replaceChildren();
+    $("msg").textContent = `error: ${e.message}`;
+  }
+}
+
+$("form").onsubmit = (e) => {
+  e.preventDefault();
+  search($("q").value.trim());
+};
+
+api("/api/info").then((i) => {
+  $("info").textContent = `game: ${i.version || "any version"} | loader: ${i.loader || "none"}`;
+});
+search("");
+</script>
+</body>
+</html>
