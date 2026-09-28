@@ -375,6 +375,14 @@ impl App {
                 KeyCode::Char(c) => self.input_buffer.push(c),
                 _ => {}
             },
+            InputMode::ConfirmDelete => match code {
+                KeyCode::Char('y') | KeyCode::Char('Y') => self.confirm_delete(),
+                _ => {
+                    self.pending_delete = None;
+                    self.input_mode = InputMode::Normal;
+                    self.status = "cancelled".to_string();
+                }
+            },
         }
     }
 
@@ -394,6 +402,13 @@ impl App {
                     Err(e) => format!("add error: {e}"),
                 };
                 self.mods = mods::list();
+            }
+            Tab::Textures => {
+                self.status = match packs::add(&path) {
+                    Ok(name) => format!("added {name}"),
+                    Err(e) => format!("add error: {e}"),
+                };
+                self.packs = packs::list();
             }
             Tab::Worlds => {
                 self.status = match worlds::import(&path) {
