@@ -21,3 +21,12 @@ pub fn restore(id: Result<String, String>) {
         let _ = Command::new(tool()).arg("windowactivate").arg(id).output();
     }
 }
+
+pub fn open_folder(path: &std::path::Path) {
+    let _ = std::fs::create_dir_all(path);
+    let _ = Command::new("xdg-open")
+        .arg(path)
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .spawn();
+}

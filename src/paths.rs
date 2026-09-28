@@ -40,3 +40,21 @@ pub fn private_key_file() -> PathBuf {
 pub fn public_key_pem_file() -> PathBuf {
     data_dir().join("skin_key_pub.pem")
 }
+
+pub fn mods_dir() -> PathBuf {
+    game_dir().join("mods")
+}
+
+pub fn saves_dir() -> PathBuf {
+    game_dir().join("saves")
+}
+
+pub fn home_dir() -> PathBuf {
+    PathBuf::from(std::env::var("HOME").unwrap_or_else(|_| ".".to_string()))
+}
+
+pub fn clean_path(text: &str) -> PathBuf {
+    let t = text.trim().trim_matches(|c: char| c == '\'' || c == '"');
+    let t = t.strip_prefix("file://").unwrap_or(t);
+    PathBuf::from(t.replace("\\ ", " "))
+}
