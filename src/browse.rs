@@ -166,13 +166,29 @@ fn handle(mut stream: TcpStream, state: &Arc<State>) -> Result<()> {
             let ctx = detect_context();
             json_response(&mut stream, 200, &json!({ "version": ctx.mc_version, "loader": ctx.loader }))
         }
+        ("GET", "/api/targets") => json_response(&mut stream, 200, &json!(list_targets())),
+        ("GET", "/api/tags") => match fetch_tags(kind_of(&q)) {
+            Ok(v) => json_response(&mut stream, 200, &v),
+            Err(e) => json_response(&mut stream, 500, &json!({ "error": e.to_string() })),
+        },
+        ("GET", "/api/project") => {
+            let id = q.get("id").cloned().unwrap_or_default();
+            match fetch_project(&id) {
+                Ok(v) => json_response(&mut stream, 200, &v),
+                Err(e) => json_response(&mut stream, 500, &json!({ "error": e.to_string() })),
+            }
+        }
         ("GET", "/api/search") => match search(&q) {
             Ok(v) => json_response(&mut stream, 200, &v),
             Err(e) => json_response(&mut stream, 500, &json!({ "error": e.to_string() })),
         },
         ("POST", "/api/install") => {
             let id = q.get("id").cloned().unwrap_or_default();
-            let result = install_root(&id, kind_of(&q));
+            let ctx = Context {
+                mc_version: q.get("mc").and_then(|m| safe(m)),
+                loader: q.get("loader").filter(|l| !l.is_empty()).and_then(|l| safe(l)),
+            };
+            let result = install_root(&id, kind_of(&q), &ctx);
             match result {
                 Ok(done) => {
                     let _ = state.tx.lock().unwrap().send(format!("installed {}", done.join(", ")));
@@ -198,6 +214,11 @@ fn search(q: &HashMap<String, String>) -> Result<Value> {
             facets.push(format!("[\"categories:{l}\"]"));
         }
     }
+    let tags: Vec<String> = q.get("tags").map(|s| s.split(',').filter_map(safe).collect()).unwrap_or_default();
+    if !tags.is_empty() {
+        let group: Vec<String> = tags.iter().map(|t| format!("\"categories:{t}\"")).collect();
+        facets.push(format!("[{}]", group.join(",")));
+    }
     let facets = format!("[{}]", facets.join(","));
 
     let query = q.get("q").map(String::as_str).unwrap_or("");
@@ -214,9 +235,47 @@ fn search(q: &HashMap<String, String>) -> Result<Value> {
     Ok(body)
 }
 
-fn install_root(id: &str, kind: &str) -> Result<Vec<String>> {
+fn list_targets() -> Vec<Value> {
+    versions::installed_versions()
+        .into_iter()
+        .map(|id| {
+            if let Some(rest) = id.strip_prefix("fabric-loader-") {
+                if let Some((_, mc)) = rest.split_once('-') {
+                    return json!({ "id": id, "mc": mc, "loader": "fabric", "label": format!("{mc} (fabric)") });
+                }
+            }
+            json!({ "id": id, "mc": id, "loader": Value::Null, "label": format!("{id} (vanilla)") })
+        })
+        .collect()
+}
+
+fn fetch_tags(kind: &str) -> Result<Value> {
+    let list: Value = ureq::get(&format!("{API}/tag/category")).set("User-Agent", USER_AGENT).call()?.into_json()?;
+    let filtered: Vec<Value> = list
+        .as_array()
+        .ok_or_else(|| anyhow!("bad tag response"))?
+        .iter()
+        .filter(|c| c["project_type"] == kind)
+        .map(|c| json!({ "name": c["name"] }))
+        .collect();
+    Ok(json!(filtered))
+}
+
+fn fetch_project(id: &str) -> Result<Value> {
+    if safe(id).is_none() {
+        bail!("bad project id");
+    }
+    let p: Value = ureq::get(&format!("{API}/project/{id}")).set("User-Agent", USER_AGENT).call()?.into_json()?;
+    let gallery: Vec<Value> = p["gallery"]
+        .as_array()
+        .map(|a| a.iter().map(|g| json!({ "url": g["url"], "title": g["title"] })).collect())
+        .unwrap_or_default();
+    Ok(json!({ "title": p["title"], "body": p["body"], "gallery": gallery }))
+}
+
+fn install_root(id: &str, kind: &str, ctx: &Context) -> Result<Vec<String>> {
     let mut done = Vec::new();
-    install(id, kind, &detect_context(), &mut Vec::new(), &mut done, 0)?;
+    install(id, kind, ctx, &mut Vec::new(), &mut done, 0)?;
     Ok(done)
 }
 
