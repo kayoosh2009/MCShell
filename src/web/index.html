@@ -37,14 +37,20 @@
     <input id="q" placeholder="search..." autocomplete="off" autofocus>
     <button>search</button>
   </form>
+  <div id="tags"></div>
   <div id="msg"></div>
   <div id="list"></div>
 </main>
+
+<div id="overlay" class="overlay hidden">
+  <div class="modal" id="modal"></div>
+</div>
 <script>
 const params = new URLSearchParams(location.search);
 const token = params.get("t");
 const kind = params.get("kind") === "resourcepack" ? "resourcepack" : "mod";
 const $ = (id) => document.getElementById(id);
+const selectedTags = new Set();
 
 $("kind").textContent = kind === "mod" ? " / mods" : " / texture packs";
 
@@ -60,6 +66,74 @@ function el(tag, cls, text) {
   return e;
 }
 
+function closeModal() {
+  $("overlay").classList.add("hidden");
+  $("modal").replaceChildren();
+}
+$("overlay").onclick = (e) => { if (e.target.id === "overlay") closeModal(); };
+
+async function openProject(id) {
+  $("modal").replaceChildren(el("div", "", "loading..."));
+  $("overlay").classList.remove("hidden");
+  try {
+    const p = await api("/api/project", { id });
+    if (p.error) throw new Error(p.error);
+    const box = el("div");
+    const closeBtn = el("button", "close", "close");
+    closeBtn.onclick = closeModal;
+    box.append(closeBtn, el("h2", "", p.title));
+    if (p.gallery.length) {
+      const gal = el("div", "gallery");
+      for (const g of p.gallery) {
+        const img = el("img");
+        img.src = g.url;
+        img.alt = g.title || "";
+        gal.append(img);
+      }
+      box.append(gal);
+    }
+    box.append(el("pre", "", p.body || "(no description)"));
+    $("modal").replaceChildren(box);
+  } catch (e) {
+    $("modal").replaceChildren(el("div", "", `error: ${e.message}`));
+  }
+}
+
+async function openInstallPicker(projectId) {
+  $("modal").replaceChildren(el("div", "", "loading versions..."));
+  $("overlay").classList.remove("hidden");
+  try {
+    const targets = await api("/api/targets");
+    if (!targets.length) throw new Error("no installed versions found");
+    const box = el("div");
+    const closeBtn = el("button", "close", "close");
+    closeBtn.onclick = closeModal;
+    box.append(closeBtn, el("h2", "", "Install for which version?"));
+    const list = el("div", "targets");
+    for (const t of targets) {
+      const btn = el("button", "", t.label);
+      btn.onclick = async () => {
+        btn.disabled = true;
+        btn.textContent = "installing...";
+        try {
+          const r = await api("/api/install", { id: projectId, mc: t.mc, loader: t.loader || "" }, "POST");
+          btn.textContent = r.ok ? "installed" : "failed";
+          $("msg").textContent = r.ok ? `installed: ${r.files.join(", ")}` : `error: ${r.error}`;
+          if (r.ok) setTimeout(closeModal, 600);
+        } catch {
+          btn.textContent = "failed";
+          $("msg").textContent = "error: launcher not reachable";
+        }
+      };
+      list.append(btn);
+    }
+    box.append(list);
+    $("modal").replaceChildren(box);
+  } catch (e) {
+    $("modal").replaceChildren(el("div", "", `error: ${e.message}`));
+  }
+}
+
 function render(hits) {
   const list = $("list");
   list.replaceChildren();
@@ -69,37 +143,51 @@ function render(hits) {
     const img = el("img");
     if (h.icon_url) img.src = h.icon_url;
     img.alt = "";
+    img.style.cursor = "pointer";
+    img.onclick = () => openProject(h.project_id);
+
+    const title = el("div", "title", h.title);
+    title.onclick = () => openProject(h.project_id);
 
     const body = el("div", "body");
     body.append(
-      el("div", "title", h.title),
+      title,
       el("div", "desc", h.description),
       el("div", "meta", `by ${h.author} | ${h.downloads.toLocaleString()} downloads`)
     );
 
     const btn = el("button", "", "install");
-    btn.onclick = async () => {
-      btn.disabled = true;
-      btn.textContent = "installing...";
-      try {
-        const r = await api("/api/install", { id: h.project_id }, "POST");
-        btn.textContent = r.ok ? "installed" : "failed";
-        $("msg").textContent = r.ok ? `installed: ${r.files.join(", ")}` : `error: ${r.error}`;
-      } catch {
-        btn.textContent = "failed";
-        $("msg").textContent = "error: launcher not reachable";
-      }
-    };
+    btn.onclick = () => openInstallPicker(h.project_id);
 
     item.append(img, body, btn);
     list.append(item);
   }
 }
 
+async function loadTags() {
+  try {
+    const tags = await api("/api/tags");
+    const box = $("tags");
+    box.replaceChildren();
+    for (const t of tags) {
+      const name = t.name;
+      const btn = el("div", "tag", name);
+      btn.onclick = () => {
+        if (selectedTags.has(name)) selectedTags.delete(name); else selectedTags.add(name);
+        btn.classList.toggle("active");
+        search($("q").value.trim());
+      };
+      box.append(btn);
+    }
+  } catch {
+    // фильтры не критичны, просто не покажем их при ошибке
+  }
+}
+
 async function search(query) {
   $("msg").textContent = "searching...";
   try {
-    const r = await api("/api/search", { q: query });
+    const r = await api("/api/search", { q: query, tags: [...selectedTags].join(",") });
     if (r.error) throw new Error(r.error);
     render(r.hits || []);
   } catch (e) {
@@ -116,6 +204,7 @@ $("form").onsubmit = (e) => {
 api("/api/info").then((i) => {
   $("info").textContent = `game: ${i.version || "any version"} | loader: ${i.loader || "none"}`;
 });
+loadTags();
 search("");
 </script>
 </body>
