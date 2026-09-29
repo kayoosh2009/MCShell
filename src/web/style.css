@@ -1,0 +1,208 @@
+  :root {
+      --bg: #252525;
+      --fg: #cbcdd0;
+      --line: #cbcdd0;
+      --accent: #52ac57;
+  }
+
+  * {
+      box-sizing: border-box;
+  }
+
+  body {
+      margin: 0;
+      padding: 24px;
+      background: var(--bg);
+      color: var(--fg);
+      font: 14px/1.5 ui-monospace, "JetBrains Mono", "Fira Code", monospace;
+  }
+
+  main {
+      max-width: 820px;
+      margin: 0 auto;
+  }
+
+  h1 {
+      margin: 0 0 4px;
+      color: var(--accent);
+      font-size: 18px;
+  }
+
+  #info {
+      opacity: .7;
+      margin-bottom: 16px;
+  }
+
+  form {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 12px;
+  }
+
+  input {
+      flex: 1;
+      padding: 8px 10px;
+      background: var(--bg);
+      color: var(--fg);
+      border: 1px solid var(--line);
+      font: inherit;
+      outline: none;
+  }
+
+  input:focus {
+      border-color: var(--accent);
+  }
+
+  button {
+      padding: 8px 14px;
+      background: var(--bg);
+      color: var(--fg);
+      border: 1px solid var(--line);
+      font: inherit;
+      cursor: pointer;
+  }
+
+  button:hover {
+      border-color: var(--accent);
+      color: var(--accent);
+  }
+
+  button:disabled {
+      opacity: .5;
+      cursor: default;
+  }
+
+  #tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-bottom: 16px;
+  }
+
+  .tag {
+      padding: 4px 10px;
+      border: 1px solid var(--line);
+      opacity: .7;
+      cursor: pointer;
+      font-size: 12px;
+  }
+
+  .tag:hover {
+      opacity: 1;
+      border-color: var(--accent);
+  }
+
+  .tag.active {
+      opacity: 1;
+      border-color: var(--accent);
+      color: var(--accent);
+  }
+
+  .item {
+      display: flex;
+      gap: 12px;
+      padding: 12px;
+      border: 1px solid var(--line);
+      margin-bottom: 8px;
+  }
+
+  .item img {
+      width: 48px;
+      height: 48px;
+      image-rendering: pixelated;
+      background: var(--line);
+      flex: none;
+  }
+
+  .body {
+      flex: 1;
+      min-width: 0;
+  }
+
+  .title {
+      color: var(--accent);
+      cursor: pointer;
+  }
+
+  .title:hover {
+      text-decoration: underline;
+  }
+
+  .desc {
+      opacity: .7;
+      margin: 2px 0;
+      overflow-wrap: anywhere;
+  }
+
+  .meta {
+      opacity: .7;
+      font-size: 12px;
+  }
+
+  #msg {
+      opacity: .7;
+      padding: 8px 0;
+  }
+
+  .overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, .6);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+  }
+
+  .overlay.hidden {
+      display: none;
+  }
+
+  .modal {
+      background: var(--bg);
+      border: 1px solid var(--line);
+      max-width: 720px;
+      width: 100%;
+      max-height: 80vh;
+      overflow: auto;
+      padding: 20px;
+  }
+
+  .modal h2 {
+      color: var(--accent);
+      margin-top: 0;
+  }
+
+  .modal .close {
+      float: right;
+  }
+
+  .modal pre {
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+      font: inherit;
+  }
+
+  .gallery {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin: 12px 0;
+  }
+
+  .gallery img {
+      max-width: 220px;
+      max-height: 140px;
+      border: 1px solid var(--line);
+  }
+
+  .targets {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin-top: 12px;
+  }
+
+  .targets button {
+      text-align: left;
+  }
