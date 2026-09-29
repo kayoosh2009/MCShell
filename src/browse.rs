@@ -13,6 +13,8 @@ use crate::{paths, versions};
 const API: &str = "https://api.modrinth.com/v2";
 const USER_AGENT: &str = "MCShell/0.1.0 (github.com/kayoosh2009/MCShell)";
 const INDEX_HTML: &str = include_str!("web/index.html");
+const STYLE_CSS: &str = include_str!("web/style.css");
+const SCRIPT_JS: &str = include_str!("web/script.js");
 
 struct State {
     token: String,
@@ -156,12 +158,23 @@ fn handle(mut stream: TcpStream, state: &Arc<State>) -> Result<()> {
     let (path, query) = target.split_once('?').unwrap_or((target, ""));
     let q = parse_query(query);
 
+    // Статику отдаём без токена: <link>/<script src> идут по относительным
+    // путям без query, а сами файлы ничего не меняют и не читают.
+    match (method, path) {
+        ("GET", "/api/info") => {
+            return respond(&mut stream, 200, "text/html; charset=utf-8", INDEX_HTML.as_bytes());
+        }
+        ("GET", "/") => return respond(&mut stream, 403, "text/plain", b"forbidden"),
+        ("GET", "/style.css") => return respond(&mut stream, 200, "text/css", STYLE_CSS.as_bytes()),
+        ("GET", "/script.js") => return respond(&mut stream, 200, "text/javascript", SCRIPT_JS.as_bytes()),
+        _ => {}
+    }
+
     if q.get("t").map(String::as_str) != Some(state.token.as_str()) {
         return respond(&mut stream, 403, "text/plain", b"forbidden");
     }
 
     match (method, path) {
-        ("GET", "/") => respond(&mut stream, 200, "text/html; charset=utf-8", INDEX_HTML.as_bytes()),
         ("GET", "/api/info") => {
             let ctx = detect_context();
             json_response(&mut stream, 200, &json!({ "version": ctx.mc_version, "loader": ctx.loader }))

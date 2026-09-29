@@ -1,211 +1,30 @@
 <!doctype html>
 <html lang="en">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>MCShell browser</title>
-<style>
-  :root { --bg:#0d1117; --fg:#c9d1d9; --green:#3fb950; --dim:#8b949e; --line:#30363d; }
-  * { box-sizing: border-box; }
-  body { margin:0; padding:24px; background:var(--bg); color:var(--fg);
-         font:14px/1.5 ui-monospace, "JetBrains Mono", "Fira Code", monospace; }
-  main { max-width: 820px; margin: 0 auto; }
-  h1 { margin:0 0 4px; color:var(--green); font-size:18px; }
-  #info { color:var(--dim); margin-bottom:16px; }
-  form { display:flex; gap:8px; margin-bottom:16px; }
-  input { flex:1; padding:8px 10px; background:var(--bg); color:var(--fg);
-          border:1px solid var(--line); font:inherit; outline:none; }
-  input:focus { border-color:var(--green); }
-  button { padding:8px 14px; background:var(--bg); color:var(--green);
-           border:1px solid var(--green); font:inherit; cursor:pointer; }
-  button:hover { background:var(--green); color:var(--bg); }
-  button:disabled { color:var(--dim); border-color:var(--line); cursor:default; background:var(--bg); }
-  .item { display:flex; gap:12px; padding:12px; border:1px solid var(--line); margin-bottom:8px; }
-  .item img { width:48px; height:48px; image-rendering:pixelated; background:var(--line); flex:none; }
-  .body { flex:1; min-width:0; }
-  .title { color:var(--green); }
-  .desc { color:var(--dim); margin:2px 0; overflow-wrap:anywhere; }
-  .meta { color:var(--dim); font-size:12px; }
-  #msg { color:var(--dim); padding:8px 0; }
-</style>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MCShell browser</title>
+  <link rel="stylesheet" href="/style.css">
 </head>
 <body>
-<main>
-  <h1>&gt; MCShell browser<span id="kind"></span></h1>
-  <div id="info">loading...</div>
-  <form id="form">
-    <input id="q" placeholder="search..." autocomplete="off" autofocus>
-    <button>search</button>
-  </form>
-  <div id="tags"></div>
-  <div id="msg"></div>
-  <div id="list"></div>
-</main>
+  <main>
+    <h1>&gt; MCShell browser<span id="kind"></span></h1>
+    <div id="info">loading...</div>
 
-<div id="overlay" class="overlay hidden">
-  <div class="modal" id="modal"></div>
-</div>
-<script>
-const params = new URLSearchParams(location.search);
-const token = params.get("t");
-const kind = params.get("kind") === "resourcepack" ? "resourcepack" : "mod";
-const $ = (id) => document.getElementById(id);
-const selectedTags = new Set();
+    <form id="form">
+      <input id="q" placeholder="search..." autocomplete="off" autofocus>
+      <button>search</button>
+    </form>
 
-$("kind").textContent = kind === "mod" ? " / mods" : " / texture packs";
+    <div id="tags"></div>
+    <div id="msg"></div>
+    <div id="list"></div>
+  </main>
 
-function api(path, extra = {}, method = "GET") {
-  const p = new URLSearchParams({ t: token, kind, ...extra });
-  return fetch(`${path}?${p}`, { method }).then((r) => r.json());
-}
+  <div id="overlay" class="overlay hidden">
+    <div class="modal" id="modal"></div>
+  </div>
 
-function el(tag, cls, text) {
-  const e = document.createElement(tag);
-  if (cls) e.className = cls;
-  if (text !== undefined) e.textContent = text;
-  return e;
-}
-
-function closeModal() {
-  $("overlay").classList.add("hidden");
-  $("modal").replaceChildren();
-}
-$("overlay").onclick = (e) => { if (e.target.id === "overlay") closeModal(); };
-
-async function openProject(id) {
-  $("modal").replaceChildren(el("div", "", "loading..."));
-  $("overlay").classList.remove("hidden");
-  try {
-    const p = await api("/api/project", { id });
-    if (p.error) throw new Error(p.error);
-    const box = el("div");
-    const closeBtn = el("button", "close", "close");
-    closeBtn.onclick = closeModal;
-    box.append(closeBtn, el("h2", "", p.title));
-    if (p.gallery.length) {
-      const gal = el("div", "gallery");
-      for (const g of p.gallery) {
-        const img = el("img");
-        img.src = g.url;
-        img.alt = g.title || "";
-        gal.append(img);
-      }
-      box.append(gal);
-    }
-    box.append(el("pre", "", p.body || "(no description)"));
-    $("modal").replaceChildren(box);
-  } catch (e) {
-    $("modal").replaceChildren(el("div", "", `error: ${e.message}`));
-  }
-}
-
-async function openInstallPicker(projectId) {
-  $("modal").replaceChildren(el("div", "", "loading versions..."));
-  $("overlay").classList.remove("hidden");
-  try {
-    const targets = await api("/api/targets");
-    if (!targets.length) throw new Error("no installed versions found");
-    const box = el("div");
-    const closeBtn = el("button", "close", "close");
-    closeBtn.onclick = closeModal;
-    box.append(closeBtn, el("h2", "", "Install for which version?"));
-    const list = el("div", "targets");
-    for (const t of targets) {
-      const btn = el("button", "", t.label);
-      btn.onclick = async () => {
-        btn.disabled = true;
-        btn.textContent = "installing...";
-        try {
-          const r = await api("/api/install", { id: projectId, mc: t.mc, loader: t.loader || "" }, "POST");
-          btn.textContent = r.ok ? "installed" : "failed";
-          $("msg").textContent = r.ok ? `installed: ${r.files.join(", ")}` : `error: ${r.error}`;
-          if (r.ok) setTimeout(closeModal, 600);
-        } catch {
-          btn.textContent = "failed";
-          $("msg").textContent = "error: launcher not reachable";
-        }
-      };
-      list.append(btn);
-    }
-    box.append(list);
-    $("modal").replaceChildren(box);
-  } catch (e) {
-    $("modal").replaceChildren(el("div", "", `error: ${e.message}`));
-  }
-}
-
-function render(hits) {
-  const list = $("list");
-  list.replaceChildren();
-  $("msg").textContent = hits.length ? "" : "nothing found";
-  for (const h of hits) {
-    const item = el("div", "item");
-    const img = el("img");
-    if (h.icon_url) img.src = h.icon_url;
-    img.alt = "";
-    img.style.cursor = "pointer";
-    img.onclick = () => openProject(h.project_id);
-
-    const title = el("div", "title", h.title);
-    title.onclick = () => openProject(h.project_id);
-
-    const body = el("div", "body");
-    body.append(
-      title,
-      el("div", "desc", h.description),
-      el("div", "meta", `by ${h.author} | ${h.downloads.toLocaleString()} downloads`)
-    );
-
-    const btn = el("button", "", "install");
-    btn.onclick = () => openInstallPicker(h.project_id);
-
-    item.append(img, body, btn);
-    list.append(item);
-  }
-}
-
-async function loadTags() {
-  try {
-    const tags = await api("/api/tags");
-    const box = $("tags");
-    box.replaceChildren();
-    for (const t of tags) {
-      const name = t.name;
-      const btn = el("div", "tag", name);
-      btn.onclick = () => {
-        if (selectedTags.has(name)) selectedTags.delete(name); else selectedTags.add(name);
-        btn.classList.toggle("active");
-        search($("q").value.trim());
-      };
-      box.append(btn);
-    }
-  } catch {
-    // фильтры не критичны, просто не покажем их при ошибке
-  }
-}
-
-async function search(query) {
-  $("msg").textContent = "searching...";
-  try {
-    const r = await api("/api/search", { q: query, tags: [...selectedTags].join(",") });
-    if (r.error) throw new Error(r.error);
-    render(r.hits || []);
-  } catch (e) {
-    $("list").replaceChildren();
-    $("msg").textContent = `error: ${e.message}`;
-  }
-}
-
-$("form").onsubmit = (e) => {
-  e.preventDefault();
-  search($("q").value.trim());
-};
-
-api("/api/info").then((i) => {
-  $("info").textContent = `game: ${i.version || "any version"} | loader: ${i.loader || "none"}`;
-});
-loadTags();
-search("");
-</script>
+  <script src="/script.js"></script>
 </body>
 </html>
