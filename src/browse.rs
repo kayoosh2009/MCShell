@@ -161,7 +161,7 @@ fn handle(mut stream: TcpStream, state: &Arc<State>) -> Result<()> {
     // Статику отдаём без токена: <link>/<script src> идут по относительным
     // путям без query, а сами файлы ничего не меняют и не читают.
     match (method, path) {
-        ("GET", "/api/info") => {
+        ("GET", "/") if q.get("t").map(String::as_str) == Some(state.token.as_str()) => {
             return respond(&mut stream, 200, "text/html; charset=utf-8", INDEX_HTML.as_bytes());
         }
         ("GET", "/") => return respond(&mut stream, 403, "text/plain", b"forbidden"),
