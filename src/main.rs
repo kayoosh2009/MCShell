@@ -16,6 +16,7 @@ mod packs;
 mod worlds;
 mod discord;
 mod stats;
+mod keymap;
 
 use std::io;
 

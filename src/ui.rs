@@ -1,10 +1,43 @@
 use ratatui::layout::{Alignment, Constraint, Direction, Layout};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{Block, Borders, Paragraph, Tabs};
+use ratatui::widgets::{Block, Borders, Paragraph, Tabs, Wrap};
 use ratatui::Frame;
 
 use crate::app::{App, InputMode, Tab};
+
+fn kv(label: &str, value: String) -> Line<'static> {
+    Line::from(vec![
+        Span::styled(format!(" {label:<15}"), Style::default().fg(Color::Cyan)),
+        Span::raw(value),
+    ])
+}
+
+fn dim(s: &str) -> Line<'static> {
+    Line::styled(format!(" {s}"), Style::default().fg(Color::DarkGray))
+}
+
+fn head(s: &str) -> Line<'static> {
+    Line::styled(format!(" {s}"), Style::default().fg(Color::Green).add_modifier(Modifier::BOLD))
+}
+
+fn key_lines(keys: &[(&str, &str)]) -> Vec<Line<'static>> {
+    keys.iter()
+        .map(|(k, d)| {
+            Line::from(vec![
+                Span::styled(format!(" {k:<10}"), Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
+                Span::styled(d.to_string(), Style::default().fg(Color::Gray)),
+            ])
+        })
+        .collect()
+}
+
+fn panel(title: &str) -> Block<'static> {
+    Block::default()
+        .borders(Borders::ALL)
+        .border_style(Style::default().fg(Color::DarkGray))
+        .title(Span::styled(format!(" {title} "), Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)))
+}
 
 pub fn draw(f: &mut Frame, app: &App) {
     if let Some((start, _)) = &app.browse_launch {
@@ -19,190 +52,179 @@ pub fn draw(f: &mut Frame, app: &App) {
 
     let titles: Vec<Line> = Tab::ALL.iter().map(|t| Line::from(Span::raw(t.title()))).collect();
     let tabs = Tabs::new(titles)
-        .block(Block::default().borders(Borders::ALL).title("MCShell"))
+        .block(panel("MCShell"))
         .select(app.current_tab.index())
-        .highlight_style(Style::default().fg(Color::Green).add_modifier(Modifier::BOLD));
+        .highlight_style(Style::default().fg(Color::Green).add_modifier(Modifier::BOLD | Modifier::UNDERLINED));
     f.render_widget(tabs, chunks[0]);
 
-    let title = app.current_tab.title();
-    
-    // 1. Сначала просто получаем текст для любой вкладки
-    let text = match app.current_tab {
-        Tab::Profile => match app.input_mode {
-            InputMode::EditingUsername => format!("New username: {}_", app.input_buffer),
-            _ => {
-                use crate::stats::{fmt_ago, fmt_bytes, fmt_duration};
-                let s = crate::stats::snapshot();
-                let biggest = match &s.biggest_world {
-                    Some((name, size)) => format!("{name} ({})", fmt_bytes(*size)),
-                    None => "-".to_string(),
-                };
-                format!(
-                    "Username: {}\nUUID: {}\n\npress 'e' to edit username\n\n\
-                     --- Stats ---\n\
-                     Playtime:       {}\n\
-                     Launches:       {}\n\
-                     Last played:    {}\n\n\
-                     Worlds:         {} ({})\n\
-                     Biggest world:  {}\n\
-                     Mods:           {} ({})\n\
-                     Texture packs:  {} ({})\n\
-                     Launcher data:  {}",
-                    app.profile.username,
-                    app.profile.offline_uuid(),
-                    fmt_duration(s.total_secs),
-                    s.launches,
-                    fmt_ago(s.last_played),
-                    s.worlds,
-                    fmt_bytes(s.worlds_bytes),
-                    biggest,
-                    s.mods,
-                    fmt_bytes(s.mods_bytes),
-                    s.packs,
-                    fmt_bytes(s.packs_bytes),
-                    fmt_bytes(s.data_bytes),
-                )
+    let cols = Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints([Constraint::Percentage(60), Constraint::Percentage(40)])
+        .split(chunks[1]);
+
+    let item = |i: usize, s: String| -> Line<'static> {
+        if i == app.list_index {
+            Line::styled(format!(" ▶ {s}"), Style::default().fg(Color::Green).add_modifier(Modifier::BOLD))
+        } else {
+            Line::from(format!("   {s}"))
+        }
+    };
+
+    let mut left: Vec<Line> = Vec::new();
+    let mut stats: Vec<Line> = Vec::new();
+    let keys: Vec<(&str, &str)>;
+
+    match app.current_tab {
+        Tab::Profile => {
+            if let InputMode::EditingUsername = app.input_mode {
+                left.push(kv("New username", format!("{}_", app.input_buffer)));
+            } else {
+                left.push(kv("Username", app.profile.username.clone()));
+                left.push(kv("UUID", app.profile.offline_uuid()));
             }
-        },
+            use crate::stats::{fmt_ago, fmt_bytes, fmt_duration};
+            let s = crate::stats::snapshot();
+            let biggest = match &s.biggest_world {
+                Some((n, b)) => format!("{n} ({})", fmt_bytes(*b)),
+                None => "-".to_string(),
+            };
+            stats.push(head("Playing"));
+            stats.push(kv("Playtime", fmt_duration(s.total_secs)));
+            stats.push(kv("Launches", s.launches.to_string()));
+            stats.push(kv("Last played", fmt_ago(s.last_played)));
+            stats.push(Line::from(""));
+            stats.push(head("Storage"));
+            stats.push(kv("Worlds", format!("{} ({})", s.worlds, fmt_bytes(s.worlds_bytes))));
+            stats.push(kv("Biggest world", biggest));
+            stats.push(kv("Mods", format!("{} ({})", s.mods, fmt_bytes(s.mods_bytes))));
+            stats.push(kv("Texture packs", format!("{} ({})", s.packs, fmt_bytes(s.packs_bytes))));
+            stats.push(kv("Launcher data", fmt_bytes(s.data_bytes)));
+            keys = vec![("e", "edit username"), ("←/→ Tab", "switch tab"), ("q", "quit")];
+        }
         Tab::Versions => {
-            let mut lines = vec![match app.input_mode {
-                InputMode::EditingVersion => format!("Version id: {}_", app.input_buffer),
-                _ => "i: type version id, r: fetch list, up/down+enter: install, f: install fabric".to_string(),
-            }];
-            lines.push(format!("installed: {}", app.installed.join(", ")));
-            lines.push(String::new());
-            for (i, v) in app.remote_versions.iter().take(25).enumerate() {
-                let marker = if i == app.list_index { ">" } else { " " };
-                lines.push(format!("{marker} {} ({})", v.id, v.kind));
+            if let InputMode::EditingVersion = app.input_mode {
+                left.push(kv("Version id", format!("{}_", app.input_buffer)));
             }
-            lines.join("\n")
+            left.push(kv("Installed", app.installed.join(", ")));
+            left.push(Line::from(""));
+            for (i, v) in app.remote_versions.iter().take(25).enumerate() {
+                left.push(item(i, format!("{} ({})", v.id, v.kind)));
+            }
+            keys = vec![
+                ("i", "type version id"),
+                ("r", "fetch version list"),
+                ("↑/↓", "select"),
+                ("Enter", "install selected"),
+                ("f", "install Fabric"),
+            ];
         }
         Tab::Mods => {
-            let mut lines = vec![
-                "drop a .jar on the window to add".to_string(),
-                "up/down: select  space: on/off  d: delete  o: open folder  b: browse online".to_string(),
-                String::new(),
-            ];
             if app.mods.is_empty() {
-                lines.push("no mods yet".to_string());
+                left.push(dim("no mods yet"));
             }
             for (i, m) in app.mods.iter().enumerate() {
-                let marker = if i == app.list_index { ">" } else { " " };
-                let check = if m.enabled { "[x]" } else { "[ ]" };
-                lines.push(format!("{marker} {check} {}", m.name));
+                let c = if m.enabled { "[x]" } else { "[ ]" };
+                left.push(item(i, format!("{c} {}", m.name)));
             }
-            lines.join("\n")
+            keys = vec![
+                ("drop .jar", "add mod"),
+                ("↑/↓", "select"),
+                ("Space", "enable / disable"),
+                ("d", "delete"),
+                ("o", "open folder"),
+                ("b", "browse online"),
+            ];
         }
         Tab::Skins => {
-            // Сначала получаем текст
-            let text = format!(
-                "Skin: {}\n\ndrop a PNG file on the terminal window to set it",
-                if app.has_skin { "set" } else { "not set" }
-            );
-            
-            // Если есть скин — делим экран
-            if app.has_skin {
-                let inner = Layout::default()
-                    .direction(Direction::Horizontal)
-                    .constraints([Constraint::Percentage(40), Constraint::Percentage(60)])
-                    .split(chunks[1]);
-                
-                // Текст слева
-                f.render_widget(
-                    Paragraph::new(text.clone()).block(Block::default().borders(Borders::ALL).title(title)),
-                    inner[0]
-                );
-                
-                // Превью справа
-                if let Ok(img) = image::open(crate::paths::skin_file()) {
-                    let lines = crate::skin_view::skin_to_lines(&img, 32, 32);
-                    f.render_widget(
-                        Paragraph::new(lines).block(Block::default().borders(Borders::ALL).title("Skin preview")),
-                        inner[1]
-                    );
-                }
-                return; // выходим, чтобы не рисовать текст дважды
-            }
-            
-            text  // возвращаем текст для обычного рендеринга (если нет скина)
-        },
+            left.push(kv("Skin", if app.has_skin { "set" } else { "not set" }.to_string()));
+            left.push(Line::from(""));
+            left.extend(key_lines(&[("drop PNG", "set skin")]));
+            keys = vec![];
+        }
         Tab::Textures => {
-            let mut lines = vec![
-                "drop a .zip on the window to add".to_string(),
-                "up/down: select  d: delete  o: open folder  b: browse online".to_string(),
-                "enable packs in game: Options > Resource Packs".to_string(),
-                String::new(),
-            ];
             if app.packs.is_empty() {
-                lines.push("no texture packs yet".to_string());
+                left.push(dim("no texture packs yet"));
             }
             for (i, p) in app.packs.iter().enumerate() {
-                let marker = if i == app.list_index { ">" } else { " " };
-                lines.push(format!("{marker} {p}"));
+                left.push(item(i, p.clone()));
             }
-            lines.join("\n")
+            left.push(Line::from(""));
+            left.push(dim("enable in game: Options > Resource Packs"));
+            keys = vec![
+                ("drop .zip", "add pack"),
+                ("↑/↓", "select"),
+                ("d", "delete"),
+                ("o", "open folder"),
+                ("b", "browse online"),
+            ];
         }
         Tab::Worlds => {
-            let mut lines = vec![
-                "drop a .zip on the window to import".to_string(),
-                "up/down: select  e: export to home folder  o: open folder".to_string(),
-                String::new(),
-            ];
             if app.worlds.is_empty() {
-                lines.push("no worlds yet".to_string());
+                left.push(dim("no worlds yet"));
             }
             for (i, w) in app.worlds.iter().enumerate() {
-                let marker = if i == app.list_index { ">" } else { " " };
-                lines.push(format!("{marker} {w}"));
+                left.push(item(i, w.clone()));
             }
-            lines.join("\n")
+            keys = vec![
+                ("drop .zip", "import world"),
+                ("↑/↓", "select"),
+                ("e", "export to home"),
+                ("o", "open folder"),
+            ];
         }
         Tab::Launch => {
             let c1 = if app.hide_after_launch { "[x]" } else { "[ ]" };
             let c2 = if app.show_logs_separate { "[x]" } else { "[ ]" };
-            let mut lines = vec![
-                "up/down: select, enter: launch, d: delete".to_string(),
-                format!("1:{c1} hide launcher after launch"),
-                format!("2:{c2} show logs in separate terminal"),
-                String::new(),
-            ];
+            left.push(kv("Options", String::new()));
+            left.push(Line::from(format!("  {c1} hide launcher after launch")));
+            left.push(Line::from(format!("  {c2} logs in separate terminal")));
+            left.push(Line::from(""));
             for (i, v) in app.installed.iter().enumerate() {
-                let marker = if i == app.list_index { ">" } else { " " };
-                lines.push(format!("{marker} {v}"));
+                left.push(item(i, v.clone()));
             }
-            lines.join("\n")
+            keys = vec![
+                ("↑/↓", "select version"),
+                ("Enter", "launch"),
+                ("d", "delete version"),
+                ("1", "toggle hide launcher"),
+                ("2", "toggle separate logs"),
+            ];
         }
-    };
-
-    // 2. Специальная логика отрисовки только для вкладки Skins с загруженным скином
-    if app.current_tab == Tab::Skins && app.has_skin {
-        let inner_chunks = Layout::default()
-            .direction(Direction::Horizontal)
-            .constraints([Constraint::Percentage(40), Constraint::Percentage(60)])
-            .split(chunks[1]);
-
-        // Текст слева
-        let body = Paragraph::new(text).block(Block::default().borders(Borders::ALL).title(title));
-        f.render_widget(body, inner_chunks[0]);
-
-        // Превью скина справа
-        if let Ok(img) = image::open(crate::paths::skin_file()) {
-            let lines = crate::skin_view::skin_to_lines(&img, 32, 32);
-            let preview = Paragraph::new(lines)
-                .block(Block::default().borders(Borders::ALL).title("Skin preview"));
-            f.render_widget(preview, inner_chunks[1]);
-        }
-    } else {
-        // Стандартная отрисовка для всех остальных вкладок (и для Skins без картинки)
-        let body = Paragraph::new(text).block(Block::default().borders(Borders::ALL).title(title));
-        f.render_widget(body, chunks[1]);
     }
 
-    // 3. Статус бар рисуется ВСЕГДА, независимо от вкладки
+    f.render_widget(
+        Paragraph::new(left).wrap(Wrap { trim: false }).block(panel(app.current_tab.title())),
+        cols[0],
+    );
+
+    match app.current_tab {
+        Tab::Profile => {
+            let rv = Layout::default()
+                .direction(Direction::Vertical)
+                .constraints([Constraint::Min(0), Constraint::Length(keys.len() as u16 + 2)])
+                .split(cols[1]);
+            f.render_widget(Paragraph::new(stats).block(panel("Stats")), rv[0]);
+            f.render_widget(Paragraph::new(key_lines(&keys)).block(panel("Keys")), rv[1]);
+        }
+        Tab::Skins => {
+            if app.has_skin {
+                if let Ok(img) = image::open(crate::paths::skin_file()) {
+                    let lines = crate::skin_view::skin_to_lines(&img, 32, 32);
+                    f.render_widget(Paragraph::new(lines).block(panel("Skin preview")), cols[1]);
+                }
+            } else {
+                f.render_widget(Paragraph::new(vec![dim("no skin yet")]).block(panel("Skin preview")), cols[1]);
+            }
+        }
+        _ => {
+            f.render_widget(Paragraph::new(key_lines(&keys)).block(panel("Keys")), cols[1]);
+        }
+    }
+
     let status_style = if matches!(app.input_mode, InputMode::ConfirmDelete) {
         Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)
     } else {
-        Style::default()
+        Style::default().fg(Color::Gray)
     };
     f.render_widget(Paragraph::new(app.status.as_str()).style(status_style), chunks[2]);
 }
