@@ -219,6 +219,8 @@ pub fn launch(id: &str, username: &str, uuid: &str, show_logs_separate: bool, wi
         java_args.push(a);
     }
 
+    crate::discord::set(&format!("Playing {id}"), "Minecraft");
+
     let args_file = paths::game_dir().join("launch_args.txt");
     let args_content = java_args.join("\n");
     fs::write(&args_file, &args_content)?;
@@ -231,6 +233,7 @@ pub fn launch(id: &str, username: &str, uuid: &str, show_logs_separate: bool, wi
         std::thread::spawn(move || {
             let _ = child.wait();
             server.stop();
+            crate::discord::set("In launcher", "Choosing a version");
             crate::window::restore(win);
         });
     } else {
@@ -239,6 +242,7 @@ pub fn launch(id: &str, username: &str, uuid: &str, show_logs_separate: bool, wi
         cmd.current_dir(paths::game_dir());
         cmd.status()?;
         server.stop();
+        crate::discord::set("In launcher", "Choosing a version");
         crate::window::restore(win);
     }
 

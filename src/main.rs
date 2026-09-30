@@ -14,6 +14,7 @@ mod browse;
 mod mods;
 mod packs;
 mod worlds;
+mod discord;
 
 use std::io;
 
@@ -31,7 +32,9 @@ fn main() -> Result<()> {
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
 
+    discord::init();
     let result = app::run(&mut terminal);
+    discord::shutdown();
 
     disable_raw_mode()?;
     execute!(terminal.backend_mut(), LeaveAlternateScreen, DisableBracketedPaste)?;
