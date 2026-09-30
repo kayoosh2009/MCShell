@@ -30,11 +30,39 @@ pub fn draw(f: &mut Frame, app: &App) {
     let text = match app.current_tab {
         Tab::Profile => match app.input_mode {
             InputMode::EditingUsername => format!("New username: {}_", app.input_buffer),
-            _ => format!(
-                "Username: {}\nUUID: {}\n\npress 'e' to edit username",
-                app.profile.username,
-                app.profile.offline_uuid()
-            ),
+            _ => {
+                use crate::stats::{fmt_ago, fmt_bytes, fmt_duration};
+                let s = crate::stats::snapshot();
+                let biggest = match &s.biggest_world {
+                    Some((name, size)) => format!("{name} ({})", fmt_bytes(*size)),
+                    None => "-".to_string(),
+                };
+                format!(
+                    "Username: {}\nUUID: {}\n\npress 'e' to edit username\n\n\
+                     --- Stats ---\n\
+                     Playtime:       {}\n\
+                     Launches:       {}\n\
+                     Last played:    {}\n\n\
+                     Worlds:         {} ({})\n\
+                     Biggest world:  {}\n\
+                     Mods:           {} ({})\n\
+                     Texture packs:  {} ({})\n\
+                     Launcher data:  {}",
+                    app.profile.username,
+                    app.profile.offline_uuid(),
+                    fmt_duration(s.total_secs),
+                    s.launches,
+                    fmt_ago(s.last_played),
+                    s.worlds,
+                    fmt_bytes(s.worlds_bytes),
+                    biggest,
+                    s.mods,
+                    fmt_bytes(s.mods_bytes),
+                    s.packs,
+                    fmt_bytes(s.packs_bytes),
+                    fmt_bytes(s.data_bytes),
+                )
+            }
         },
         Tab::Versions => {
             let mut lines = vec![match app.input_mode {

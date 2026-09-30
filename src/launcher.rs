@@ -230,8 +230,10 @@ pub fn launch(id: &str, username: &str, uuid: &str, show_logs_separate: bool, wi
         cmd.arg("-e").arg("java").arg(format!("@{}", args_file.to_string_lossy()));
         cmd.current_dir(paths::game_dir());
         let mut child = cmd.spawn()?;
+        crate::stats::session_start();
         std::thread::spawn(move || {
             let _ = child.wait();
+            crate::stats::session_end();
             server.stop();
             crate::discord::set("In launcher", "Choosing a version");
             crate::window::restore(win);
@@ -240,7 +242,10 @@ pub fn launch(id: &str, username: &str, uuid: &str, show_logs_separate: bool, wi
         let mut cmd = Command::new("java");
         cmd.arg(format!("@{}", args_file.to_string_lossy()));
         cmd.current_dir(paths::game_dir());
-        cmd.status()?;
+        crate::stats::session_start();
+        let status = cmd.status();
+        crate::stats::session_end();
+        status?;
         server.stop();
         crate::discord::set("In launcher", "Choosing a version");
         crate::window::restore(win);
