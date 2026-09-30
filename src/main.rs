@@ -15,6 +15,7 @@ mod mods;
 mod packs;
 mod worlds;
 mod discord;
+mod stats;
 
 use std::io;
 
@@ -33,6 +34,7 @@ fn main() -> Result<()> {
     let mut terminal = Terminal::new(backend)?;
 
     discord::init();
+    stats::init();
     let result = app::run(&mut terminal);
     discord::shutdown();
 

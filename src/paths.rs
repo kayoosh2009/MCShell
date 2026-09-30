@@ -66,3 +66,7 @@ pub fn packs_dir() -> PathBuf {
 pub fn installed_file() -> PathBuf {
     data_dir().join("installed.txt")
 }
+
+pub fn stats_file() -> PathBuf {
+    data_dir().join("stats.txt")
+}
