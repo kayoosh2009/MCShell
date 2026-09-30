@@ -180,6 +180,9 @@ fn handle(mut stream: TcpStream, state: &Arc<State>) -> Result<()> {
             json_response(&mut stream, 200, &json!({ "version": ctx.mc_version, "loader": ctx.loader }))
         }
         ("GET", "/api/targets") => json_response(&mut stream, 200, &json!(list_targets())),
+        ("GET", "/api/installed") => {
+            json_response(&mut stream, 200, &json!(installed_ids(kind_of(&q))))
+        }
         ("GET", "/api/tags") => match fetch_tags(kind_of(&q)) {
             Ok(v) => json_response(&mut stream, 200, &v),
             Err(e) => json_response(&mut stream, 500, &json!({ "error": e.to_string() })),
@@ -292,6 +295,37 @@ fn install_root(id: &str, kind: &str, ctx: &Context) -> Result<Vec<String>> {
     Ok(done)
 }
 
+fn record_installed(kind: &str, id: &str, filename: &str) {
+    let _ = std::fs::create_dir_all(paths::data_dir());
+    let line = format!("{kind}|{id}|{filename}\n");
+    if let Ok(mut f) = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(paths::installed_file())
+    {
+        let _ = f.write_all(line.as_bytes());
+    }
+}
+
+fn installed_ids(kind: &str) -> Vec<String> {
+    let dir = if kind == "mod" { paths::mods_dir() } else { paths::packs_dir() };
+    let text = std::fs::read_to_string(paths::installed_file()).unwrap_or_default();
+    let mut out: Vec<String> = Vec::new();
+    for line in text.lines() {
+        let mut p = line.splitn(3, '|');
+        let (Some(k), Some(id), Some(file)) = (p.next(), p.next(), p.next()) else { continue };
+        if k != kind {
+            continue;
+        }
+        // файл должен реально лежать в папке (включая выключенные моды)
+        let exists = dir.join(file).is_file() || dir.join(format!("{file}.disabled")).is_file();
+        if exists && !out.iter().any(|x| x == id) {
+            out.push(id.to_string());
+        }
+    }
+    out
+}
+
 fn install(id: &str, kind: &str, ctx: &Context, seen: &mut Vec<String>, done: &mut Vec<String>, depth: u8) -> Result<()> {
     if depth > 3 || seen.iter().any(|s| s == id) {
         return Ok(());
@@ -328,6 +362,7 @@ fn install(id: &str, kind: &str, ctx: &Context, seen: &mut Vec<String>, done: &m
     let dir = if kind == "mod" { paths::mods_dir() } else { paths::packs_dir() };
     versions::download_to(url, &dir.join(name))?;
     done.push(name.to_string());
+    record_installed(kind, id, name);
 
     if let Some(deps) = version["dependencies"].as_array() {
         for d in deps.iter().filter(|d| d["dependency_type"] == "required") {
