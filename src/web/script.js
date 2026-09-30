@@ -6,6 +6,7 @@ const params = new URLSearchParams(location.search);
 const token = params.get("t");
 const kind = params.get("kind") === "resourcepack" ? "resourcepack" : "mod";
 const selectedTags = new Set();
+const installed = new Set(); // id проектов, установленных за эту сессию
 
 const $ = (id) => document.getElementById(id);
 
@@ -75,8 +76,16 @@ async function openProject(id) {
 async function openInstallPicker(projectId) {
   openModal(el("div", "", "loading versions..."));
   try {
-    const targets = await api("/api/targets");
-    if (!targets.length) throw new Error("no installed versions found");
+    const all = await api("/api/targets");
+    // для модов оставляем только версии с загрузчиком (fabric), vanilla прячем
+    const targets = kind === "mod" ? all.filter((t) => t.loader) : all;
+    if (!targets.length) {
+      throw new Error(
+        kind === "mod"
+          ? "no modded versions installed (install Fabric in the launcher first)"
+          : "no installed versions found"
+      );
+    }
 
     const box = el("div");
     const closeBtn = el("button", "close", "close");
@@ -103,7 +112,10 @@ async function installTo(projectId, target, btn) {
     const r = await api("/api/install", { id: projectId, mc: target.mc, loader: target.loader || "" }, "POST");
     btn.textContent = r.ok ? "installed" : "failed";
     $("msg").textContent = r.ok ? `installed: ${r.files.join(", ")}` : `error: ${r.error}`;
-    if (r.ok) setTimeout(closeModal, 600);
+    if (r.ok) {
+      markInstalled(projectId);
+      setTimeout(closeModal, 600);
+    }
   } catch {
     btn.textContent = "failed";
     $("msg").textContent = "error: launcher not reachable";
@@ -133,9 +145,11 @@ function renderItem(hit) {
     el("div", "meta", `by ${hit.author} | ${hit.downloads.toLocaleString()} downloads`)
   );
 
-  const installBtn = el("button", "", "install");
+  const isDone = installed.has(hit.project_id);
+  const installBtn = el("button", isDone ? "done" : "", isDone ? "✓ installed" : "install");
   installBtn.onclick = () => openInstallPicker(hit.project_id);
 
+  item.dataset.id = hit.project_id;
   item.append(img, body, installBtn);
   return item;
 }
@@ -144,6 +158,15 @@ function render(hits) {
   const list = $("list");
   list.replaceChildren(...hits.map(renderItem));
   $("msg").textContent = hits.length ? "" : "nothing found";
+}
+
+function markInstalled(projectId) {
+  installed.add(projectId);
+  const btn = document.querySelector(`.item[data-id="${projectId}"] > button`);
+  if (btn) {
+    btn.textContent = "✓ installed";
+    btn.classList.add("done");
+  }
 }
 
 // -----------------------------------------------------------------------

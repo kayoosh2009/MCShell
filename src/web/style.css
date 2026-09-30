@@ -216,3 +216,8 @@ button:disabled {
 .targets button {
   text-align: left;
 }
+
+button.done {
+  color: var(--accent);
+  border-color: var(--accent);
+}
