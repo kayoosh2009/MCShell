@@ -483,7 +483,18 @@ pub fn run(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>) -> Result<()> 
 
         if event::poll(Duration::from_millis(200))? {
             match event::read()? {
-                Event::Key(key) if key.kind == KeyEventKind::Press => app.handle_key(key.code),
+                Event::Key(key) if key.kind == KeyEventKind::Press => {
+                    // Конвертируем раскладку только в обычном режиме.
+                    // В режимах редактирования (имя, версия) оставляем как есть, 
+                    // чтобы пользователь мог нормально печатать кириллицей.
+                    let code = match key.code {
+                        KeyCode::Char(c) if !matches!(app.input_mode, InputMode::EditingUsername | InputMode::EditingVersion) => {
+                            KeyCode::Char(crate::keymap::to_latin(c))
+                        }
+                        other => other,
+                    };
+                    app.handle_key(code);
+                }
                 Event::Paste(text) => app.handle_paste(text),
                 _ => {}
             }
