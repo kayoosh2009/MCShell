@@ -3,6 +3,7 @@ use std::os::unix::net::UnixStream;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Mutex;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
+
 use serde_json::json;
 
 // Вставь сюда Application ID из Discord Developer Portal
@@ -19,14 +20,12 @@ fn connect() -> Option<UnixStream> {
     let base = std::env::var("XDG_RUNTIME_DIR")
         .or_else(|_| std::env::var("TMPDIR"))
         .unwrap_or_else(|_| "/tmp".to_string());
-    
     // обычный Discord, flatpak и snap
     let dirs = [
         base.clone(),
         format!("{base}/app/com.discordapp.Discord"),
         format!("{base}/snap.discord"),
     ];
-    
     for dir in dirs {
         for i in 0..10 {
             if let Ok(s) = UnixStream::connect(format!("{dir}/discord-ipc-{i}")) {
@@ -82,7 +81,7 @@ pub fn init() {
     log("socket connected");
     let _ = s.set_read_timeout(Some(Duration::from_secs(2)));
     let _ = s.set_write_timeout(Some(Duration::from_secs(2)));
-    
+
     let hello = json!({ "v": 1, "client_id": APP_ID }).to_string();
     if let Err(e) = send(&mut s, 0, &hello) {
         log(&format!("handshake send failed: {e}"));
@@ -100,6 +99,7 @@ pub fn init() {
             return;
         }
     }
+
     START.store(now_secs(), Ordering::Relaxed);
     *CONN.lock().unwrap() = Some(s);
     set("In launcher", "Choosing a version");
@@ -109,8 +109,7 @@ pub fn init() {
 pub fn set(details: &str, state: &str) {
     let mut guard = CONN.lock().unwrap();
     let Some(s) = guard.as_mut() else { return };
-    
-    // 👇 ЗДЕСЬ ДОБАВЛЕН МАССИВ "buttons" 👇
+
     let payload = json!({
         "cmd": "SET_ACTIVITY",
         "args": {
@@ -119,20 +118,7 @@ pub fn set(details: &str, state: &str) {
                 "details": details,
                 "state": state,
                 "timestamps": { "start": START.load(Ordering::Relaxed) },
-                "assets": { 
-                    "large_image": "mcshell", 
-                    "large_text": "MCShell" 
-                },
-                "buttons": [
-                    {
-                        "label": "Download MCShell",
-                        "url": "https://kayoosh2009.github.io/MCShell/"
-                    },
-                    {
-                        "label": "MCShell Discord",
-                        "url": "https://discord.gg/Zy4jW3m2z8"
-                    }
-                ]
+                "assets": { "large_image": "mcshell", "large_text": "MCShell" }
             }
         },
         "nonce": now_secs().to_string()
