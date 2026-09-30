@@ -6,7 +6,7 @@ const params = new URLSearchParams(location.search);
 const token = params.get("t");
 const kind = params.get("kind") === "resourcepack" ? "resourcepack" : "mod";
 const selectedTags = new Set();
-const installed = new Set(); // id проектов, установленных за эту сессию
+const installed = new Set(); // id проектов, которые лежат в папке (с сервера)
 
 const $ = (id) => document.getElementById(id);
 
@@ -202,8 +202,13 @@ async function loadTags() {
 async function search(query) {
   $("msg").textContent = "searching...";
   try {
-    const r = await api("/api/search", { q: query, tags: [...selectedTags].join(",") });
+    const [r, ids] = await Promise.all([
+      api("/api/search", { q: query, tags: [...selectedTags].join(",") }),
+      api("/api/installed"),
+    ]);
     if (r.error) throw new Error(r.error);
+    installed.clear();
+    ids.forEach((id) => installed.add(id));
     render(r.hits || []);
   } catch (e) {
     $("list").replaceChildren();

@@ -62,3 +62,7 @@ pub fn clean_path(text: &str) -> PathBuf {
 pub fn packs_dir() -> PathBuf {
     game_dir().join("resourcepacks")
 }
+
+pub fn installed_file() -> PathBuf {
+    data_dir().join("installed.txt")
+}
