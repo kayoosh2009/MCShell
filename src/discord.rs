@@ -36,6 +36,18 @@ fn connect() -> Option<UnixStream> {
     None
 }
 
+fn log(msg: &str) {
+    let dir = crate::paths::data_dir();
+    let _ = std::fs::create_dir_all(&dir);
+    if let Ok(mut f) = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(dir.join("discord.log"))
+    {
+        let _ = writeln!(f, "{msg}");
+    }
+}
+
 fn send(s: &mut UnixStream, op: u32, payload: &str) -> std::io::Result<()> {
     let mut buf = Vec::with_capacity(8 + payload.len());
     buf.extend_from_slice(&op.to_le_bytes());
@@ -44,7 +56,7 @@ fn send(s: &mut UnixStream, op: u32, payload: &str) -> std::io::Result<()> {
     s.write_all(&buf)
 }
 
-fn recv(s: &mut UnixStream) -> std::io::Result<()> {
+fn recv(s: &mut UnixStream) -> std::io::Result<String> {
     let mut head = [0u8; 8];
     s.read_exact(&mut head)?;
     let len = u32::from_le_bytes([head[4], head[5], head[6], head[7]]) as usize;
@@ -52,18 +64,40 @@ fn recv(s: &mut UnixStream) -> std::io::Result<()> {
         return Err(std::io::Error::new(std::io::ErrorKind::InvalidData, "frame too big"));
     }
     let mut body = vec![0u8; len];
-    s.read_exact(&mut body)
+    s.read_exact(&mut body)?;
+    Ok(String::from_utf8_lossy(&body).to_string())
 }
 
 /// Подключается к Discord. Если Discord не запущен, тихо ничего не делает.
 pub fn init() {
-    let Some(mut s) = connect() else { return };
+    if APP_ID.starts_with("PUT_") {
+        log("APP_ID not set");
+        return;
+    }
+    let Some(mut s) = connect() else {
+        log("no discord-ipc socket found (is Discord running? flatpak/snap?)");
+        return;
+    };
+    log("socket connected");
     let _ = s.set_read_timeout(Some(Duration::from_secs(2)));
     let _ = s.set_write_timeout(Some(Duration::from_secs(2)));
 
     let hello = json!({ "v": 1, "client_id": APP_ID }).to_string();
-    if send(&mut s, 0, &hello).is_err() || recv(&mut s).is_err() {
+    if let Err(e) = send(&mut s, 0, &hello) {
+        log(&format!("handshake send failed: {e}"));
         return;
+    }
+    match recv(&mut s) {
+        Ok(body) => {
+            log(&format!("handshake reply: {body}"));
+            if !body.contains("READY") {
+                return; // Discord вернул ошибку (например, неверный APP_ID)
+            }
+        }
+        Err(e) => {
+            log(&format!("handshake recv failed: {e}"));
+            return;
+        }
     }
 
     START.store(now_secs(), Ordering::Relaxed);
@@ -91,8 +125,12 @@ pub fn set(details: &str, state: &str) {
     })
     .to_string();
 
-    if send(s, 1, &payload).is_err() || recv(s).is_err() {
-        *guard = None; // Discord закрыли, больше не пытаемся
+    match send(s, 1, &payload).and_then(|_| recv(s)) {
+        Ok(body) => log(&format!("set_activity reply: {body}")),
+        Err(e) => {
+            log(&format!("set_activity failed: {e}"));
+            *guard = None;
+        }
     }
 }
 
