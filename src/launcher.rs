@@ -228,6 +228,8 @@ pub fn launch(id: &str, username: &str, uuid: &str, show_logs_separate: bool, wi
 
     crate::discord::set(&format!("Playing {id}"), "Minecraft");
 
+    let started = std::time::SystemTime::now();
+    let id_owned = id.to_string();
     let args_file = paths::game_dir().join("launch_args.txt");
     let args_content = java_args.join("\n");
     fs::write(&args_file, &args_content)?;
@@ -239,8 +241,9 @@ pub fn launch(id: &str, username: &str, uuid: &str, show_logs_separate: bool, wi
         let mut child = cmd.spawn()?;
         crate::stats::session_start();
         std::thread::spawn(move || {
-            let _ = child.wait();
+            let code = child.wait().ok().and_then(|s| s.code());
             crate::stats::session_end();
+            crate::logs::on_exit(&id_owned, code, started);
             server.stop();
             crate::discord::set("In launcher", "Choosing a version");
             crate::window::restore(win);
@@ -252,6 +255,8 @@ pub fn launch(id: &str, username: &str, uuid: &str, show_logs_separate: bool, wi
         crate::stats::session_start();
         let status = cmd.status();
         crate::stats::session_end();
+        let code = status.as_ref().ok().and_then(|s| s.code());
+        crate::logs::on_exit(id, code, started);
         status?;
         server.stop();
         crate::discord::set("In launcher", "Choosing a version");
