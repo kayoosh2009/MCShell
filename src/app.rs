@@ -21,10 +21,11 @@ pub enum Tab {
     Skins,
     Worlds,
     Launch,
+    More,
 }
 
 impl Tab {
-    pub const ALL: [Tab; 7] = [Tab::Profile, Tab::Versions, Tab::Mods, Tab::Textures, Tab::Skins, Tab::Worlds, Tab::Launch];
+    pub const ALL: [Tab; 8] = [Tab::Profile, Tab::Versions, Tab::Mods, Tab::Textures, Tab::Skins, Tab::Worlds, Tab::Launch, Tab::More];
 
     pub fn title(&self) -> &'static str {
         match self {
@@ -35,6 +36,7 @@ impl Tab {
             Tab::Skins => "Skins",
             Tab::Worlds => "Worlds",
             Tab::Launch => "Launch",
+            Tab::More => "More",
         }
     }
 
