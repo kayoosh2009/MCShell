@@ -190,6 +190,59 @@ pub fn draw(f: &mut Frame, app: &App) {
                 ("2", "toggle separate logs"),
             ];
         }
+                Tab::More => {
+            let pages = ["1 Settings", "2 Java", "3 About"];
+            let mut hdr: Vec<Span> = Vec::new();
+            for (i, p) in pages.iter().enumerate() {
+                let st = if i == app.more_page {
+                    Style::default().fg(Color::Green).add_modifier(Modifier::BOLD | Modifier::UNDERLINED)
+                } else {
+                    Style::default().fg(Color::DarkGray)
+                };
+                hdr.push(Span::styled(format!(" {p} "), st));
+            }
+            left.push(Line::from(hdr));
+            left.push(Line::from(""));
+
+            match app.more_page {
+                0 => {
+                    let rows = [
+                        ("Discord presence", app.discord_on),
+                        ("Hide launcher after launch", app.hide_after_launch),
+                        ("Logs in separate terminal", app.show_logs_separate),
+                    ];
+                    for (i, (name, on)) in rows.iter().enumerate() {
+                        let c = if *on { "[x]" } else { "[ ]" };
+                        left.push(item(i, format!("{c} {name}")));
+                    }
+                    keys = vec![("↑/↓", "select"), ("Enter", "toggle yes / no"), ("1 2 3", "switch page")];
+                }
+                1 => {
+                    left.push(dim("Launcher picks the right Java automatically."));
+                    left.push(dim("If it is not installed, system java is used."));
+                    left.push(Line::from(""));
+                    for (i, (m, note)) in crate::java::JAVAS.iter().enumerate() {
+                        let st = if crate::java::is_installed(*m) { "installed" } else { "not installed" };
+                        left.push(item(i, format!("Java {m:<3} {st:<14} {note}")));
+                    }
+                    keys = vec![("↑/↓", "select"), ("Enter", "download"), ("d", "delete"), ("1 2 3", "switch page")];
+                }
+                _ => {
+                    use crate::settings::{DISCORD, EMAIL, GITHUB, TELEGRAM};
+                    left.push(head("MCShell"));
+                    left.push(dim("A fast terminal launcher for Minecraft."));
+                    left.push(dim("Fabric, mods, texture packs, worlds and skins"));
+                    left.push(dim("in one place, with an online Modrinth browser."));
+                    left.push(Line::from(""));
+                    left.push(head("Contacts"));
+                    left.push(kv("GitHub", GITHUB.to_string()));
+                    left.push(kv("Email", EMAIL.to_string()));
+                    left.push(kv("Discord", DISCORD.to_string()));
+                    left.push(kv("Telegram", TELEGRAM.to_string()));
+                    keys = vec![("g", "open GitHub"), ("m", "write email"), ("d", "open Discord"), ("t", "open Telegram"), ("1 2 3", "switch page")];
+                }
+            }
+        }
     }
 
     f.render_widget(

@@ -79,12 +79,15 @@ pub struct App {
     pending_delete: Option<DeleteTarget>,
     pub hide_after_launch: bool,
     pub show_logs_separate: bool,
+    pub discord_on: bool,
+    pub more_page: usize,
     pending_launch: Option<String>,
     progress_rx: Option<Receiver<String>>,
 }
 
 impl App {
     pub fn new() -> Self {
+        let st = crate::settings::load();
         Self {
             current_tab: Tab::Profile,
             should_quit: false,
@@ -104,11 +107,58 @@ impl App {
             browse_launch: None,
             browse: None,
             pending_delete: None,
-            hide_after_launch: false,
-            show_logs_separate: true,
+            hide_after_launch: st.hide_after_launch,
+            show_logs_separate: st.show_logs_separate,
+            discord_on: st.discord,
+            more_page: 0,
             pending_launch: None,
             progress_rx: None,
         }
+    }
+
+    fn save_settings(&self) {
+        crate::settings::save(&crate::settings::Settings {
+            discord: self.discord_on,
+            hide_after_launch: self.hide_after_launch,
+            show_logs_separate: self.show_logs_separate,
+        });
+    }
+
+    fn toggle_setting(&mut self, i: usize) {
+        match i {
+            0 => {
+                self.discord_on = !self.discord_on;
+                if self.discord_on {
+                    crate::discord::init();
+                } else {
+                    crate::discord::shutdown();
+                }
+            }
+            1 => self.hide_after_launch = !self.hide_after_launch,
+            _ => self.show_logs_separate = !self.show_logs_separate,
+        }
+        self.save_settings();
+    }
+
+    fn more_len(&self) -> usize {
+        match self.more_page {
+            0 => 3,
+            1 => crate::java::JAVAS.len(),
+            _ => 0,
+        }
+    }
+
+    fn spawn_java_install(&mut self, major: u32) {
+        self.progress_log.clear();
+        let (tx, rx) = mpsc::channel();
+        self.progress_rx = Some(rx);
+        self.status = format!("installing java {major}...");
+        std::thread::spawn(move || {
+            let progress = |msg: String| { let _ = tx.send(msg); };
+            if let Err(e) = crate::java::install(major, &progress) {
+                let _ = tx.send(format!("error: {e}"));
+            }
+        });
     }
 
     fn next_tab(&mut self) {
@@ -330,12 +380,8 @@ impl App {
                 KeyCode::Up if self.current_tab == Tab::Launch && !self.installed.is_empty() => {
                     self.list_index = (self.list_index + self.installed.len() - 1) % self.installed.len();
                 }
-                KeyCode::Char('1') if self.current_tab == Tab::Launch => {
-                    self.hide_after_launch = !self.hide_after_launch;
-                }
-                KeyCode::Char('2') if self.current_tab == Tab::Launch => {
-                    self.show_logs_separate = !self.show_logs_separate;
-                }
+                KeyCode::Char('1') if self.current_tab == Tab::Launch => self.toggle_setting(1),
+                KeyCode::Char('2') if self.current_tab == Tab::Launch => self.toggle_setting(2),
                 KeyCode::Enter if self.current_tab == Tab::Launch => {
                     if let Some(id) = self.installed.get(self.list_index).cloned() {
                         self.pending_launch = Some(id);
@@ -398,6 +444,39 @@ impl App {
                 }
                 KeyCode::Char('o') if self.current_tab == Tab::Textures => {
                     window::open_folder(&paths::packs_dir());
+                }
+                KeyCode::Char(c @ '1'..='3') if self.current_tab == Tab::More => {
+                    self.more_page = c as usize - '1' as usize;
+                    self.list_index = 0;
+                }
+                KeyCode::Down if self.current_tab == Tab::More && self.more_len() > 0 => {
+                    self.list_index = (self.list_index + 1) % self.more_len();
+                }
+                KeyCode::Up if self.current_tab == Tab::More && self.more_len() > 0 => {
+                    self.list_index = (self.list_index + self.more_len() - 1) % self.more_len();
+                }
+                KeyCode::Enter | KeyCode::Char(' ') if self.current_tab == Tab::More && self.more_page == 0 => {
+                    self.toggle_setting(self.list_index);
+                }
+                KeyCode::Enter if self.current_tab == Tab::More && self.more_page == 1 => {
+                    let major = crate::java::JAVAS[self.list_index].0;
+                    self.spawn_java_install(major);
+                }
+                KeyCode::Char('d') | KeyCode::Delete if self.current_tab == Tab::More && self.more_page == 1 => {
+                    let major = crate::java::JAVAS[self.list_index].0;
+                    self.status = match crate::java::remove(major) {
+                        Ok(()) => format!("java {major} removed"),
+                        Err(e) => format!("remove error: {e}"),
+                    };
+                }
+                KeyCode::Char(c @ ('g' | 'm' | 'd' | 't')) if self.current_tab == Tab::More && self.more_page == 2 => {
+                    use crate::settings::{DISCORD, EMAIL, GITHUB, TELEGRAM};
+                    match c {
+                        'g' => window::open_url(GITHUB),
+                        'm' => window::open_url(&format!("mailto:{EMAIL}")),
+                        'd' => window::open_url(DISCORD),
+                        _ => window::open_url(TELEGRAM),
+                    }
                 }
                 _ => {}
             },
