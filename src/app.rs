@@ -81,6 +81,7 @@ pub struct App {
     pub show_logs_separate: bool,
     pub discord_on: bool,
     pub more_page: usize,
+    pub crash: Option<crate::logs::Report>,
     pending_launch: Option<String>,
     progress_rx: Option<Receiver<String>>,
 }
@@ -111,6 +112,7 @@ impl App {
             show_logs_separate: st.show_logs_separate,
             discord_on: st.discord,
             more_page: 0,
+            crash: None,
             pending_launch: None,
             progress_rx: None,
         }
@@ -325,6 +327,28 @@ impl App {
     }
 
     fn handle_key(&mut self, code: KeyCode) {
+        if self.crash.is_some() {
+            if matches!(code, KeyCode::Char('q') | KeyCode::Esc | KeyCode::Enter) {
+                self.crash = None;
+                return;
+            }
+            if let Some(r) = self.crash.as_mut() {
+                match code {
+                    KeyCode::Up => r.scroll = r.scroll.saturating_sub(1),
+                    KeyCode::Down => r.scroll = (r.scroll + 1).min(r.tail.len().saturating_sub(1)),
+                    KeyCode::PageUp => r.scroll = r.scroll.saturating_sub(15),
+                    KeyCode::PageDown => r.scroll = (r.scroll + 15).min(r.tail.len().saturating_sub(1)),
+                    KeyCode::Char('o') => window::open_folder(&paths::game_dir().join("logs")),
+                    KeyCode::Char('c') => {
+                        if let Some(p) = &r.crash_file {
+                            window::open_url(p);
+                        }
+                    }
+                    _ => {}
+                }
+            }
+            return;
+        }
         if self.browse_launch.is_some() {
             self.browse_launch = None;
             self.status = "cancelled".to_string();
@@ -560,6 +584,9 @@ pub fn run(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>) -> Result<()> 
     loop {
         app.poll_progress();
         app.poll_browse();
+        if let Some(r) = crate::logs::take_pending() {
+            app.crash = Some(r);
+        }
         terminal.draw(|f| ui::draw(f, &app))?;
 
         if event::poll(Duration::from_millis(200))? {
