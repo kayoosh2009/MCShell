@@ -3,9 +3,9 @@ use std::fs;
 use crate::paths;
 
 pub const GITHUB: &str = "https://github.com/kayoosh2009/MCShell";
-pub const EMAIL: &str = "PUT_YOUR_EMAIL";
-pub const DISCORD: &str = "PUT_DISCORD_INVITE_LINK";
-pub const TELEGRAM: &str = "PUT_TELEGRAM_CHANNEL_LINK";
+pub const EMAIL: &str = "kayoosh@proton.me";
+pub const DISCORD: &str = "https://discord.gg/ktMwP6KCNe";
+pub const TELEGRAM: &str = "https://t.me/kayoosh_channel";
 
 #[derive(Clone, Copy)]
 pub struct Settings {
