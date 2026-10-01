@@ -70,3 +70,7 @@ pub fn installed_file() -> PathBuf {
 pub fn stats_file() -> PathBuf {
     data_dir().join("stats.txt")
 }
+
+pub fn settings_file() -> PathBuf {
+    data_dir().join("settings.txt")
+}

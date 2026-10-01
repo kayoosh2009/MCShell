@@ -16,6 +16,8 @@ mod packs;
 mod worlds;
 mod discord;
 mod stats;
+mod java;
+mod settings;
 mod keymap;
 
 use std::io;
@@ -34,7 +36,9 @@ fn main() -> Result<()> {
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
 
-    discord::init();
+    if settings::load().discord {
+        discord::init();
+    }
     stats::init();
     let result = app::run(&mut terminal);
     discord::shutdown();

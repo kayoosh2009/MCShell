@@ -68,6 +68,7 @@ fn collect_game_args(json: &Value) -> Vec<String> {
 }
 
 struct Resolved {
+    java_major: Option<u64>,
     main_class: String,
     classpath: Vec<PathBuf>,
     asset_index: String,
@@ -163,7 +164,12 @@ fn resolve(id: &str) -> Result<Resolved> {
         }
     }
 
+    let java_major = json["javaVersion"]["majorVersion"]
+        .as_u64()
+        .or_else(|| parent_json.as_ref().and_then(|p| p["javaVersion"]["majorVersion"].as_u64()));
+
     Ok(Resolved {
+        java_major,
         main_class,
         classpath,
         asset_index,
@@ -173,6 +179,7 @@ fn resolve(id: &str) -> Result<Resolved> {
 
 pub fn launch(id: &str, username: &str, uuid: &str, show_logs_separate: bool, win: Result<String, String>) -> Result<()> {
     let resolved = resolve(id)?;
+    let java = crate::java::path_for(resolved.java_major);
     fs::create_dir_all(paths::game_dir())?;
 
     skin_server::ensure_authlib_injector()?;
@@ -227,7 +234,7 @@ pub fn launch(id: &str, username: &str, uuid: &str, show_logs_separate: bool, wi
 
     if show_logs_separate {
         let mut cmd = Command::new("konsole");
-        cmd.arg("-e").arg("java").arg(format!("@{}", args_file.to_string_lossy()));
+        cmd.arg("-e").arg(&java).arg(format!("@{}", args_file.to_string_lossy()));
         cmd.current_dir(paths::game_dir());
         let mut child = cmd.spawn()?;
         crate::stats::session_start();
@@ -239,7 +246,7 @@ pub fn launch(id: &str, username: &str, uuid: &str, show_logs_separate: bool, wi
             crate::window::restore(win);
         });
     } else {
-        let mut cmd = Command::new("java");
+        let mut cmd = Command::new(&java);
         cmd.arg(format!("@{}", args_file.to_string_lossy()));
         cmd.current_dir(paths::game_dir());
         crate::stats::session_start();
