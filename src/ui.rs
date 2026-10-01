@@ -40,6 +40,10 @@ fn panel(title: &str) -> Block<'static> {
 }
 
 pub fn draw(f: &mut Frame, app: &App) {
+    if let Some(r) = &app.crash {
+        draw_crash(f, r);
+        return;
+    }
     if let Some((start, _)) = &app.browse_launch {
         draw_browse_splash(f, start.elapsed().as_secs());
         return;
@@ -293,5 +297,59 @@ fn draw_browse_splash(f: &mut Frame, elapsed: u64) {
             .alignment(Alignment::Center)
             .block(Block::default().borders(Borders::ALL).title("Browse")),
         f.size(),
+    );
+}
+
+fn draw_crash(f: &mut Frame, r: &crate::logs::Report) {
+    let red = Style::default().fg(Color::Red).add_modifier(Modifier::BOLD);
+
+    let mut diag: Vec<Line> = vec![
+        kv("Version", r.version.clone()),
+        kv("Exit code", r.code.map_or("-".to_string(), |c| c.to_string())),
+    ];
+    for (msg, detail) in &r.findings {
+        diag.push(Line::styled(format!(" ▸ {msg}"), Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)));
+        diag.push(Line::styled(format!("   {detail}"), Style::default().fg(Color::DarkGray)));
+    }
+
+    let files: Vec<Line> = r
+        .files
+        .iter()
+        .map(|(name, desc)| {
+            Line::from(vec![
+                Span::styled(format!(" {name}"), Style::default().fg(Color::Cyan)),
+                Span::styled(format!("  {desc}"), Style::default().fg(Color::Gray)),
+            ])
+        })
+        .collect();
+
+    let chunks = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Length(diag.len() as u16 + 2),
+            Constraint::Length(files.len() as u16 + 2),
+            Constraint::Min(3),
+            Constraint::Length(1),
+        ])
+        .split(f.size());
+
+    f.render_widget(
+        Paragraph::new(diag).block(
+            Block::default()
+                .borders(Borders::ALL)
+                .border_style(Style::default().fg(Color::Red))
+                .title(Span::styled(" Game crashed ", red)),
+        ),
+        chunks[0],
+    );
+    f.render_widget(Paragraph::new(files).block(panel("Log files (in game folder)")), chunks[1]);
+
+    let tail: Vec<Line> = r.tail.iter().skip(r.scroll).map(|l| Line::from(l.clone())).collect();
+    f.render_widget(Paragraph::new(tail).block(panel(&r.tail_name)), chunks[2]);
+
+    f.render_widget(
+        Paragraph::new("↑/↓ PgUp/PgDn: scroll   o: open logs folder   c: open crash report   Esc/Enter: close")
+            .style(Style::default().fg(Color::Gray)),
+        chunks[3],
     );
 }
