@@ -16,6 +16,7 @@ mod packs;
 mod worlds;
 mod discord;
 mod stats;
+mod logs;
 mod java;
 mod settings;
 mod keymap;
