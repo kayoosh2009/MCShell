@@ -2,35 +2,25 @@ use std::fs::{File, OpenOptions};
 use std::io::{Read, Write};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Mutex;
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use serde_json::json;
 
 // Вставь сюда Application ID из Discord Developer Portal
 const APP_ID: &str = "1554822011484643498";
 
-static CONN: Mutex<Option<UnixStream>> = Mutex::new(None);
+static CONN: Mutex<Option<File>> = Mutex::new(None);
 static START: AtomicU64 = AtomicU64::new(0);
 
 fn now_secs() -> u64 {
     SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0)
 }
 
-fn connect() -> Option<UnixStream> {
-    let base = std::env::var("XDG_RUNTIME_DIR")
-        .or_else(|_| std::env::var("TMPDIR"))
-        .unwrap_or_else(|_| "/tmp".to_string());
-    // обычный Discord, flatpak и snap
-    let dirs = [
-        base.clone(),
-        format!("{base}/app/com.discordapp.Discord"),
-        format!("{base}/snap.discord"),
-    ];
-    for dir in dirs {
-        for i in 0..10 {
-            if let Ok(s) = UnixStream::connect(format!("{dir}/discord-ipc-{i}")) {
-                return Some(s);
-            }
+fn connect() -> Option<File> {
+    for i in 0..10 {
+        let path = format!(r"\\.\pipe\discord-ipc-{i}");
+        if let Ok(f) = OpenOptions::new().read(true).write(true).open(path) {
+            return Some(f);
         }
     }
     None
@@ -48,7 +38,7 @@ fn log(msg: &str) {
     }
 }
 
-fn send(s: &mut UnixStream, op: u32, payload: &str) -> std::io::Result<()> {
+fn send(s: &mut File, op: u32, payload: &str) -> std::io::Result<()> {
     let mut buf = Vec::with_capacity(8 + payload.len());
     buf.extend_from_slice(&op.to_le_bytes());
     buf.extend_from_slice(&(payload.len() as u32).to_le_bytes());
@@ -56,7 +46,7 @@ fn send(s: &mut UnixStream, op: u32, payload: &str) -> std::io::Result<()> {
     s.write_all(&buf)
 }
 
-fn recv(s: &mut UnixStream) -> std::io::Result<String> {
+fn recv(s: &mut File) -> std::io::Result<String> {
     let mut head = [0u8; 8];
     s.read_exact(&mut head)?;
     let len = u32::from_le_bytes([head[4], head[5], head[6], head[7]]) as usize;
@@ -70,6 +60,10 @@ fn recv(s: &mut UnixStream) -> std::io::Result<String> {
 
 /// Подключается к Discord. Если Discord не запущен, тихо ничего не делает.
 pub fn init() {
+    std::thread::spawn(init_blocking);
+}
+
+fn init_blocking() {
     if APP_ID.starts_with("PUT_") {
         log("APP_ID not set");
         return;
@@ -79,8 +73,6 @@ pub fn init() {
         return;
     };
     log("socket connected");
-    let _ = s.set_read_timeout(Some(Duration::from_secs(2)));
-    let _ = s.set_write_timeout(Some(Duration::from_secs(2)));
 
     let hello = json!({ "v": 1, "client_id": APP_ID }).to_string();
     if let Err(e) = send(&mut s, 0, &hello) {
