@@ -62,10 +62,17 @@ pub fn library_allowed(lib: &Value) -> bool {
             let mut allowed = false;
             for rule in rules {
                 let action_allow = rule.get("action").and_then(|a| a.as_str()) == Some("allow");
-                let os_ok = match rule.get("os").and_then(|o| o.get("name")).and_then(|n| n.as_str()) {
-                    Some(name) => name == "linux",
+                let os = rule.get("os");
+                let name_ok = match os.and_then(|o| o.get("name")).and_then(|n| n.as_str()) {
+                    Some(name) => name == "windows",
                     None => true,
                 };
+                let arch_ok = match os.and_then(|o| o.get("arch")).and_then(|a| a.as_str()) {
+                    Some("x86") => cfg!(target_arch = "x86"),
+                    Some("arm64") => cfg!(target_arch = "aarch64"),
+                    _ => true,
+                };
+                let os_ok = name_ok && arch_ok;
                 if os_ok {
                     allowed = action_allow;
                 }
@@ -96,7 +103,7 @@ pub fn download_libraries(libraries: &Value, progress: &dyn Fn(String)) -> Resul
                 if let Some(native) = lib
                     .get("downloads")
                     .and_then(|d| d.get("classifiers"))
-                    .and_then(|c| c.get("natives-linux"))
+                    .and_then(|c| c.get("natives-windows"))
                 {
                     if let (Some(n_path), Some(n_url)) = (
                         native.get("path").and_then(|p| p.as_str()),
