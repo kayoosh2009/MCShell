@@ -1,5 +1,4 @@
 use std::collections::HashMap;
-use std::fs::File;
 use std::io::{Read, Write};
 use std::net::{TcpListener, TcpStream};
 use std::sync::mpsc::{self, Receiver, Sender};
@@ -58,7 +57,7 @@ pub fn start() -> Result<BrowseServer> {
 
 fn random_token() -> Result<String> {
     let mut buf = [0u8; 16];
-    File::open("/dev/urandom")?.read_exact(&mut buf)?;
+    getrandom::getrandom(&mut buf).map_err(|e| anyhow!("random error: {e}"))?;
     Ok(buf.iter().map(|b| format!("{b:02x}")).collect())
 }
 

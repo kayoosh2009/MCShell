@@ -14,6 +14,10 @@ ureq = { version = "2", features = ["json"] }
 image = "0.25" 
 base64 = "=0.21.7"
 zip = { version = "2", default-features = false, features = ["deflate"] }
+getrandom = "0.2"
+rand = "0.8"
+rsa = "0.9"
+sha1 = { version = "0.10", features = ["oid"] }
 
 [profile.release]
 opt-level = "z"
