@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::fs;
 use std::io::Write;
 use std::path::PathBuf;
+use std::os::windows::process::CommandExt;
 use std::process::Command;
 use anyhow::{anyhow, Result};
 use serde_json::Value;
@@ -47,7 +48,7 @@ fn library_jar_path(lib: &Value) -> Option<PathBuf> {
 fn native_jar_path(lib: &Value) -> Option<PathBuf> {
     if let Some(path) = lib.get("downloads")
         .and_then(|d| d.get("classifiers"))
-        .and_then(|c| c.get("natives-linux"))
+        .and_then(|c| c.get("natives-windows"))
         .and_then(|n| n.get("path"))
         .and_then(|p| p.as_str()) 
     {
@@ -191,7 +192,7 @@ pub fn launch(id: &str, username: &str, uuid: &str, show_logs_separate: bool, wi
         .iter()
         .map(|p| p.to_string_lossy().to_string())
         .collect::<Vec<_>>()
-        .join(":");
+        .join(";");
 
     let mut ph = HashMap::new();
     ph.insert("${auth_player_name}", username.to_string());
@@ -231,13 +232,18 @@ pub fn launch(id: &str, username: &str, uuid: &str, show_logs_separate: bool, wi
     let started = std::time::SystemTime::now();
     let id_owned = id.to_string();
     let args_file = paths::game_dir().join("launch_args.txt");
-    let args_content = java_args.join("\n");
+    let args_content = java_args
+        .iter()
+        .map(|a| format!("\"{}\"", a.replace('\\', "\\\\").replace('"', "\\\"")))
+        .collect::<Vec<_>>()
+        .join("\n");
     fs::write(&args_file, &args_content)?;
 
     if show_logs_separate {
-        let mut cmd = Command::new("konsole");
-        cmd.arg("-e").arg(&java).arg(format!("@{}", args_file.to_string_lossy()));
+        let mut cmd = Command::new(&java);
+        cmd.arg(format!("@{}", args_file.to_string_lossy()));
         cmd.current_dir(paths::game_dir());
+        cmd.creation_flags(0x0000_0010); // CREATE_NEW_CONSOLE
         let mut child = cmd.spawn()?;
         crate::stats::session_start();
         std::thread::spawn(move || {
