@@ -1,8 +1,8 @@
 use std::path::PathBuf;
 
 pub fn data_dir() -> PathBuf {
-    let home = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
-    PathBuf::from(home).join(".local/share/mcshell")
+    let base = std::env::var("APPDATA").unwrap_or_else(|_| ".".to_string());
+    PathBuf::from(base).join("mcshell")
 }
 
 pub fn profile_file() -> PathBuf {
@@ -50,13 +50,13 @@ pub fn saves_dir() -> PathBuf {
 }
 
 pub fn home_dir() -> PathBuf {
-    PathBuf::from(std::env::var("HOME").unwrap_or_else(|_| ".".to_string()))
+    PathBuf::from(std::env::var("USERPROFILE").unwrap_or_else(|_| ".".to_string()))
 }
 
 pub fn clean_path(text: &str) -> PathBuf {
     let t = text.trim().trim_matches(|c: char| c == '\'' || c == '"');
     let t = t.strip_prefix("file://").unwrap_or(t);
-    PathBuf::from(t.replace("\\ ", " "))
+    PathBuf::from(t)
 }
 
 pub fn packs_dir() -> PathBuf {
