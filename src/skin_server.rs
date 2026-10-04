@@ -96,6 +96,12 @@ fn handle_connection(mut stream: TcpStream, username: &str, uuid: &str, port: u1
     let request = String::from_utf8_lossy(&buf[..n]);
     let path = request.lines().next().unwrap_or("").split_whitespace().nth(1).unwrap_or("/");
 
+    if path.contains("/session/minecraft/join") {
+        // клиент "вошёл на сервер": ждёт пустой ответ 204
+        stream.write_all(b"HTTP/1.1 204 No Content\r\nConnection: close\r\n\r\n")?;
+        return Ok(());
+    }
+
     if path.starts_with("/skin.png") {
         let bytes = std::fs::read(paths::skin_file()).unwrap_or_default();
         write_response(&mut stream, "image/png", &bytes)?;
