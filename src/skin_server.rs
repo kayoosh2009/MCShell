@@ -5,6 +5,11 @@ use std::sync::Arc;
 
 use anyhow::Result;
 use base64::Engine;
+use rsa::pkcs1v15::SigningKey;
+use rsa::pkcs8::{DecodePrivateKey, EncodePrivateKey, EncodePublicKey, LineEnding};
+use rsa::signature::{SignatureEncoding, Signer};
+use rsa::RsaPrivateKey;
+use sha1::Sha1;
 
 use crate::paths;
 use crate::versions::download_to;
@@ -23,19 +28,9 @@ fn ensure_keypair() -> Result<()> {
         return Ok(());
     }
     std::fs::create_dir_all(paths::data_dir())?;
-    let gen = std::process::Command::new("openssl")
-        .arg("genrsa").arg("-out").arg(&priv_path).arg("4096")
-        .output()?;
-    if !gen.status.success() {
-        anyhow::bail!("openssl genrsa failed: {}", String::from_utf8_lossy(&gen.stderr));
-    }
-    let pub_out = std::process::Command::new("openssl")
-        .arg("rsa").arg("-in").arg(&priv_path)
-        .arg("-pubout").arg("-outform").arg("PEM").arg("-out").arg(&pub_path)
-        .output()?;
-    if !pub_out.status.success() {
-        anyhow::bail!("openssl rsa -pubout failed: {}", String::from_utf8_lossy(&pub_out.stderr));
-    }
+    let key = RsaPrivateKey::new(&mut rand::rngs::OsRng, 2048)?;
+    std::fs::write(&priv_path, key.to_pkcs8_pem(LineEnding::LF)?.as_bytes())?;
+    std::fs::write(&pub_path, key.to_public_key().to_public_key_pem(LineEnding::LF)?)?;
     Ok(())
 }
 
@@ -45,15 +40,10 @@ fn public_key_pem_escaped() -> Result<String> {
 }
 
 fn sign(data: &[u8]) -> Result<String> {
-    use std::io::Write;
-    let mut child = std::process::Command::new("openssl")
-        .arg("dgst").arg("-sha1").arg("-sign").arg(paths::private_key_file())
-        .stdin(std::process::Stdio::piped())
-        .stdout(std::process::Stdio::piped())
-        .spawn()?;
-    child.stdin.take().unwrap().write_all(data)?;
-    let output = child.wait_with_output()?;
-    Ok(base64::engine::general_purpose::STANDARD.encode(output.stdout))
+    let pem = std::fs::read_to_string(paths::private_key_file())?;
+    let key = RsaPrivateKey::from_pkcs8_pem(&pem)?;
+    let sig = SigningKey::<Sha1>::new(key).sign(data);
+    Ok(base64::engine::general_purpose::STANDARD.encode(sig.to_bytes()))
 }
 
 #[allow(dead_code)]

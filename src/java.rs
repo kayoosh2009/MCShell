@@ -1,8 +1,7 @@
-use std::fs;
+use std::fs::{self, File};
 use std::path::PathBuf;
-use std::process::Command;
 
-use anyhow::{bail, Result};
+use anyhow::{anyhow, bail, Result};
 
 use crate::{paths, versions};
 
@@ -19,7 +18,7 @@ pub fn dir(major: u32) -> PathBuf {
 }
 
 pub fn bin(major: u32) -> PathBuf {
-    dir(major).join("bin/java")
+    dir(major).join("bin").join("java.exe")
 }
 
 pub fn is_installed(major: u32) -> bool {
@@ -46,26 +45,33 @@ pub fn install(major: u32, progress: &dyn Fn(String)) -> Result<()> {
         "aarch64" => "aarch64",
         a => bail!("unsupported arch: {a}"),
     };
-    let url = format!("https://api.adoptium.net/v3/binary/latest/{major}/ga/linux/{arch}/jre/hotspot/normal/eclipse");
-    let tmp = paths::data_dir().join("java").join(format!("{major}.tar.gz"));
+    let url = format!("https://api.adoptium.net/v3/binary/latest/{major}/ga/windows/{arch}/jre/hotspot/normal/eclipse");
+    let base = paths::data_dir().join("java");
+    let tmp = base.join(format!("{major}.zip"));
+    let tmp_dir = base.join(format!("{major}_tmp"));
 
     progress(format!("downloading java {major}..."));
     versions::download_to(&url, &tmp)?;
 
-    let dest = dir(major);
-    let _ = fs::remove_dir_all(&dest);
-    fs::create_dir_all(&dest)?;
     progress("extracting...".to_string());
-    let out = Command::new("tar")
-        .arg("-xzf").arg(&tmp)
-        .arg("-C").arg(&dest)
-        .arg("--strip-components=1")
-        .output()?;
-    let _ = fs::remove_file(&tmp);
-    if !out.status.success() {
+    let _ = fs::remove_dir_all(&tmp_dir);
+    fs::create_dir_all(&tmp_dir)?;
+    let result = (|| -> Result<()> {
+        zip::ZipArchive::new(File::open(&tmp)?)?.extract(&tmp_dir)?;
+        let root = fs::read_dir(&tmp_dir)?
+            .flatten()
+            .map(|e| e.path())
+            .find(|p| p.is_dir())
+            .ok_or_else(|| anyhow!("empty archive"))?;
+        let dest = dir(major);
         let _ = fs::remove_dir_all(&dest);
-        bail!("tar failed: {}", String::from_utf8_lossy(&out.stderr));
-    }
+        fs::rename(root, dest)?;
+        Ok(())
+    })();
+    let _ = fs::remove_file(&tmp);
+    let _ = fs::remove_dir_all(&tmp_dir);
+    result?;
+
     if !is_installed(major) {
         bail!("java binary not found after extract");
     }

@@ -179,9 +179,9 @@ fn resolve(id: &str) -> Result<Resolved> {
 }
 
 pub fn launch(id: &str, username: &str, uuid: &str, show_logs_separate: bool, win: Result<String, String>) -> Result<()> {
+    fs::create_dir_all(paths::game_dir())?;
     let resolved = resolve(id)?;
     let java = crate::java::path_for(resolved.java_major);
-    fs::create_dir_all(paths::game_dir())?;
 
     skin_server::ensure_authlib_injector()?;
     let server = skin_server::SkinServer::start(username.to_string(), uuid.to_string())?;
