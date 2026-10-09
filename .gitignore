@@ -2,3 +2,4 @@
 /AppDir
 *.AppImage
 Cargo.lock
+/Releases
