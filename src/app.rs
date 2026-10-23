@@ -16,17 +16,17 @@ use crate::{browse, fabric, launcher, mods, packs, paths, skin, ui, versions, wi
 pub enum Tab {
     Profile,
     Launch,
-    More,
+    Faq,
 }
 
 impl Tab {
-    pub const ALL: [Tab; 3] = [Tab::Profile, Tab::Launch, Tab::More];
+    pub const ALL: [Tab; 3] = [Tab::Profile, Tab::Launch, Tab::Faq];
 
     pub fn title(&self) -> &'static str {
         match self {
             Tab::Profile => "Profile",
             Tab::Launch => "Launch",
-            Tab::More => "More",
+            Tab::Faq => "FAQ",
         }
     }
 
