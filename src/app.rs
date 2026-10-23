@@ -10,7 +10,7 @@ use ratatui::backend::CrosstermBackend;
 use ratatui::Terminal;
 
 use crate::profile::Profile;
-use crate::{browse, fabric, launcher, mods, packs, paths, skin, ui, versions, window, worlds};
+use crate::{browse, launcher, mods, packs, paths, skin, ui, versions, window, worlds};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum Tab {
@@ -336,7 +336,7 @@ pub fn run(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>) -> Result<()> 
                     // В режимах редактирования (имя, версия) оставляем как есть, 
                     // чтобы пользователь мог нормально печатать кириллицей.
                     let code = match key.code {
-                        KeyCode::Char(c) if !matches!(app.input_mode, InputMode::EditingUsername | InputMode::EditingVersion) => {
+                        KeyCode::Char(c) if !matches!(app.input_mode, InputMode::EditingUsername) => {
                             KeyCode::Char(crate::keymap::to_latin(c))
                         }
                         other => other,
