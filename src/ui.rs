@@ -150,19 +150,6 @@ pub fn draw(f: &mut Frame, app: &App) {
                 ("m", "write email"),
             ];
         }
-    } for Minecraft."));
-                    left.push(dim("Fabric, mods, texture packs, worlds and skins"));
-                    left.push(dim("in one place, with an online Modrinth browser."));
-                    left.push(Line::from(""));
-                    left.push(head("Contacts"));
-                    left.push(kv("GitHub", GITHUB.to_string()));
-                    left.push(kv("Email", EMAIL.to_string()));
-                    left.push(kv("Discord", DISCORD.to_string()));
-                    left.push(kv("Telegram", TELEGRAM.to_string()));
-                    keys = vec![("g", "open GitHub"), ("m", "write email"), ("d", "open Discord"), ("t", "open Telegram"), ("1 2 3", "switch page")];
-                }
-            }
-        }
     }
 
     f.render_widget(
