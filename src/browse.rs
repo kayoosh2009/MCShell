@@ -9,7 +9,8 @@ use anyhow::{anyhow, bail, Result};
 use serde_json::{json, Value};
 
 use crate::profile::Profile;
-use crate::{paths, settings, skin, versions};
+use crate::stats::{fmt_ago, fmt_bytes, fmt_duration};
+use crate::{paths, settings, skin, stats, versions};
 
 const API: &str = "https://api.modrinth.com/v2";
 const USER_AGENT: &str = "MCShell/0.1.0 (github.com/kayoosh2009/MCShell)";
@@ -178,10 +179,19 @@ fn handle(mut stream: TcpStream, state: &Arc<State>) -> Result<()> {
     match (method, path) {
         ("GET", "/api/profile") => {
             let p = Profile::load();
+            let s = stats::snapshot();
             json_response(&mut stream, 200, &json!({
                 "username": p.username,
                 "uuid": p.offline_uuid(),
-                "has_skin": skin::has_skin()
+                "has_skin": skin::has_skin(),
+                "stats": {
+                    "playtime": fmt_duration(s.total_secs),
+                    "launches": s.launches,
+                    "last_played": fmt_ago(s.last_played),
+                    "worlds": format!("{} ({})", s.worlds, fmt_bytes(s.worlds_bytes)),
+                    "mods": format!("{} ({})", s.mods, fmt_bytes(s.mods_bytes)),
+                    "packs": format!("{} ({})", s.packs, fmt_bytes(s.packs_bytes))
+                }
             }))
         }
         ("POST", "/api/profile") => {
