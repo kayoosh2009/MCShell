@@ -8,7 +8,8 @@ use std::sync::{Arc, Mutex};
 use anyhow::{anyhow, bail, Result};
 use serde_json::{json, Value};
 
-use crate::{paths, settings, versions};
+use crate::profile::Profile;
+use crate::{paths, settings, skin, versions};
 
 const API: &str = "https://api.modrinth.com/v2";
 const USER_AGENT: &str = "MCShell/0.1.0 (github.com/kayoosh2009/MCShell)";
@@ -175,6 +176,39 @@ fn handle(mut stream: TcpStream, state: &Arc<State>) -> Result<()> {
     }
 
     match (method, path) {
+        ("GET", "/api/profile") => {
+            let p = Profile::load();
+            json_response(&mut stream, 200, &json!({
+                "username": p.username,
+                "uuid": p.offline_uuid(),
+                "has_skin": skin::has_skin()
+            }))
+        }
+        ("POST", "/api/profile") => {
+            let body_str = req
+                .split_once("\r\n\r\n")
+                .map(|(_, b)| b)
+                .or_else(|| req.split_once("\n\n").map(|(_, b)| b))
+                .unwrap_or("");
+
+            if let Ok(v) = serde_json::from_str::<Value>(body_str.trim()) {
+                if let Some(username) = v.get("username").and_then(|u| u.as_str()) {
+                    let mut p = Profile::load();
+                    p.set_username(username.to_string());
+                    let _ = state.tx.lock().unwrap().send(format!("username updated: {username}"));
+                    return json_response(&mut stream, 200, &json!({ "ok": true }));
+                }
+            }
+            json_response(&mut stream, 400, &json!({ "ok": false, "error": "invalid username" }))
+        }
+        ("GET", "/api/skin") => {
+            if skin::has_skin() {
+                if let Ok(bytes) = std::fs::read(paths::skin_file()) {
+                    return respond(&mut stream, 200, "image/png", &bytes);
+                }
+            }
+            respond(&mut stream, 404, "text/plain", b"skin not found")
+        }
         ("GET", "/api/info") => {
             let ctx = detect_context();
             json_response(&mut stream, 200, &json!({ "version": ctx.mc_version, "loader": ctx.loader }))
