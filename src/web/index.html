@@ -5,34 +5,65 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>MCShell Dashboard</title>
     <link rel="stylesheet" href="/style.css">
+    <script src="https://unpkg.com/skinview3d@3.0.1/bundles/skinview3d.bundle.js"></script>
 </head>
 <body>
     <div class="app-container">
         <main class="content-panel">
             <div class="profile-section">
                 <h2>Player Profile</h2>
-                
-                <div class="user-info">
-                    <label for="username">Username</label>
-                    <div class="input-group">
-                        <input type="text" id="username" placeholder="Player" autocomplete="off">
-                        <button id="save-username-btn" class="btn btn-secondary">Save</button>
-                    </div>
-                </div>
 
-                <div class="skin-section">
-                    <h3>Skin</h3>
-                    <div class="skin-preview-box">
-                        <div id="skin-preview-container">
-                            <span class="placeholder-text">Skin preview</span>
+                <div class="profile-layout">
+                    <!-- Слева: 3D Скин -->
+                    <div class="skin-column">
+                        <div class="skin-canvas-wrapper">
+                            <canvas id="skin-viewer-canvas"></canvas>
                         </div>
-                    </div>
-                    
-                    <div class="skin-actions">
-                        <label class="btn btn-primary file-label">
-                            Select Skin (.png)
+                        <label class="btn btn-secondary file-label">
+                            Change Skin (.png)
                             <input type="file" id="skin-file-input" accept=".png" hidden>
                         </label>
+                    </div>
+
+                    <!-- Справа: Имя и Статистика -->
+                    <div class="info-column">
+                        <div class="user-info">
+                            <label for="username">Username</label>
+                            <div class="input-group">
+                                <input type="text" id="username" placeholder="Player" autocomplete="off">
+                                <button id="save-username-btn" class="btn btn-primary">Save</button>
+                            </div>
+                        </div>
+
+                        <div class="stats-section">
+                            <h3>Statistics</h3>
+                            <div class="stats-grid">
+                                <div class="stat-card">
+                                    <span class="stat-label">Playtime</span>
+                                    <span class="stat-value" id="stat-playtime">-</span>
+                                </div>
+                                <div class="stat-card">
+                                    <span class="stat-label">Launches</span>
+                                    <span class="stat-value" id="stat-launches">-</span>
+                                </div>
+                                <div class="stat-card">
+                                    <span class="stat-label">Last Played</span>
+                                    <span class="stat-value" id="stat-last-played">-</span>
+                                </div>
+                                <div class="stat-card">
+                                    <span class="stat-label">Worlds</span>
+                                    <span class="stat-value" id="stat-worlds">-</span>
+                                </div>
+                                <div class="stat-card">
+                                    <span class="stat-label">Mods Installed</span>
+                                    <span class="stat-value" id="stat-mods">-</span>
+                                </div>
+                                <div class="stat-card">
+                                    <span class="stat-label">Resource Packs</span>
+                                    <span class="stat-value" id="stat-packs">-</span>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
