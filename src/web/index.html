@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="ru">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -8,30 +8,29 @@
 </head>
 <body>
     <div class="app-container">
-        <!-- Левая часть: Профиль и скин -->
         <main class="content-panel">
-            <div class="card profile-card">
-                <h2>Профиль игрока</h2>
+            <div class="profile-section">
+                <h2>Player Profile</h2>
                 
                 <div class="user-info">
-                    <label for="username">Игровой никнейм</label>
+                    <label for="username">Username</label>
                     <div class="input-group">
                         <input type="text" id="username" placeholder="Player" autocomplete="off">
-                        <button id="save-username-btn" class="btn btn-secondary">Сохранить</button>
+                        <button id="save-username-btn" class="btn btn-secondary">Save</button>
                     </div>
                 </div>
 
                 <div class="skin-section">
-                    <h3>Скин</h3>
+                    <h3>Skin</h3>
                     <div class="skin-preview-box">
                         <div id="skin-preview-container">
-                            <span class="placeholder-text">Превью скина</span>
+                            <span class="placeholder-text">Skin preview</span>
                         </div>
                     </div>
                     
                     <div class="skin-actions">
                         <label class="btn btn-primary file-label">
-                            Выбрать скин (.png)
+                            Select Skin (.png)
                             <input type="file" id="skin-file-input" accept=".png" hidden>
                         </label>
                     </div>
@@ -39,19 +38,18 @@
             </div>
         </main>
 
-        <!-- Правая часть: Навигация -->
         <aside class="sidebar-nav">
             <div class="nav-header">
                 <span class="logo">MCShell</span>
             </div>
             <nav class="nav-buttons">
-                <button class="nav-btn active" data-page="profile">Профиль</button>
-                <button class="nav-btn" data-page="settings">Настройки</button>
-                <button class="nav-btn" data-page="mods">Моды & Паки</button>
-                <button class="nav-btn" data-page="versions">Версии</button>
+                <button class="nav-btn active" data-page="profile">Profile</button>
+                <button class="nav-btn" data-page="settings">Settings</button>
+                <button class="nav-btn" data-page="mods">Mods & Packs</button>
+                <button class="nav-btn" data-page="versions">Versions</button>
             </nav>
             <div class="nav-footer">
-                <span id="connection-status">● Подключено (127.0.0.1)</span>
+                <span id="connection-status">● Connected (127.0.0.1)</span>
             </div>
         </aside>
     </div>
