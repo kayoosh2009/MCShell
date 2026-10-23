@@ -67,4 +67,8 @@ document.addEventListener('DOMContentLoaded', () => {
             saveUsernameBtn.textContent = 'Сохранено!';
             setTimeout(() => { saveUsernameBtn.textContent = 'Сохранить'; }, 1500);
         } catch (err) {
-            console.error('Ошибка сохр
+            console.error('Ошибка сохранения профиля:', err);
+            saveUsernameBtn.textContent = 'Ошибка';
+        }
+    });
+});
