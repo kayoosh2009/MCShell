@@ -168,9 +168,6 @@ impl App {
 
     fn on_tab_change(&mut self) {
         self.list_index = 0;
-        self.mods = mods::list();
-        self.packs = packs::list();
-        self.worlds = worlds::list();
     }
 
     fn spawn_version_install(&mut self, id: String) {
@@ -286,9 +283,8 @@ impl App {
                 }
             }
         }
-        let kind = if self.current_tab == Tab::Textures { "resourcepack" } else { "mod" };
         if let Some(s) = &self.browse {
-            self.browse_launch = Some((Instant::now(), s.url(kind)));
+            self.browse_launch = Some((Instant::now(), s.url("dashboard")));
         }
     }
 
