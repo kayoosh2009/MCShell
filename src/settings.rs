@@ -1,4 +1,5 @@
 use std::fs;
+use serde::{Deserialize, Serialize};
 
 use crate::paths;
 
@@ -7,7 +8,7 @@ pub const EMAIL: &str = "kayoosh@proton.me";
 pub const DISCORD: &str = "https://discord.gg/ktMwP6KCNe";
 pub const TELEGRAM: &str = "https://t.me/kayoosh_channel";
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Serialize, Deserialize)]
 pub struct Settings {
     pub discord: bool,
     pub hide_after_launch: bool,
