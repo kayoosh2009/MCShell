@@ -8,7 +8,7 @@ use std::sync::{Arc, Mutex};
 use anyhow::{anyhow, bail, Result};
 use serde_json::{json, Value};
 
-use crate::{paths, versions};
+use crate::{paths, settings, versions};
 
 const API: &str = "https://api.modrinth.com/v2";
 const USER_AGENT: &str = "MCShell/0.1.0 (github.com/kayoosh2009/MCShell)";
@@ -198,6 +198,34 @@ fn handle(mut stream: TcpStream, state: &Arc<State>) -> Result<()> {
             Ok(v) => json_response(&mut stream, 200, &v),
             Err(e) => json_response(&mut stream, 500, &json!({ "error": e.to_string() })),
         },
+        ("GET", "/api/settings") => {
+            let current = settings::load();
+            match serde_json::to_value(&current) {
+                Ok(v) => json_response(&mut stream, 200, &v),
+                Err(e) => json_response(&mut stream, 500, &json!({ "error": e.to_string() })),
+            }
+        }
+        ("POST", "/api/settings") => {
+            let body_str = req
+                .split_once("\r\n\r\n")
+                .map(|(_, b)| b)
+                .or_else(|| req.split_once("\n\n").map(|(_, b)| b))
+                .unwrap_or("");
+
+            match serde_json::from_str::<settings::Settings>(body_str.trim()) {
+                Ok(new_settings) => {
+                    settings::save(&new_settings);
+                    if new_settings.discord {
+                        crate::discord::init();
+                    } else {
+                        crate::discord::shutdown();
+                    }
+                    let _ = state.tx.lock().unwrap().send("settings saved from web".to_string());
+                    json_response(&mut stream, 200, &json!({ "ok": true }))
+                }
+                Err(e) => json_response(&mut stream, 400, &json!({ "ok": false, "error": e.to_string() })),
+            }
+        }
         ("POST", "/api/install") => {
             let id = q.get("id").cloned().unwrap_or_default();
             let ctx = Context {

@@ -179,16 +179,6 @@ pub fn draw(f: &mut Frame, app: &App) {
             f.render_widget(Paragraph::new(stats).block(panel("Stats")), rv[0]);
             f.render_widget(Paragraph::new(key_lines(&keys)).block(panel("Keys")), rv[1]);
         }
-        Tab::Skins => {
-            if app.has_skin {
-                if let Ok(img) = image::open(crate::paths::skin_file()) {
-                    let lines = crate::skin_view::skin_to_lines(&img, 32, 32);
-                    f.render_widget(Paragraph::new(lines).block(panel("Skin preview")), cols[1]);
-                }
-            } else {
-                f.render_widget(Paragraph::new(vec![dim("no skin yet")]).block(panel("Skin preview")), cols[1]);
-            }
-        }
         _ => {
             f.render_widget(Paragraph::new(key_lines(&keys)).block(panel("Keys")), cols[1]);
         }
