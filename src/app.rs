@@ -15,26 +15,16 @@ use crate::{browse, fabric, launcher, mods, packs, paths, skin, ui, versions, wi
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum Tab {
     Profile,
-    Versions,
-    Mods,
-    Textures,
-    Skins,
-    Worlds,
     Launch,
     More,
 }
 
 impl Tab {
-    pub const ALL: [Tab; 8] = [Tab::Profile, Tab::Versions, Tab::Mods, Tab::Textures, Tab::Skins, Tab::Worlds, Tab::Launch, Tab::More];
+    pub const ALL: [Tab; 3] = [Tab::Profile, Tab::Launch, Tab::More];
 
     pub fn title(&self) -> &'static str {
         match self {
             Tab::Profile => "Profile",
-            Tab::Versions => "Versions",
-            Tab::Mods => "Mods",
-            Tab::Textures => "Textures",
-            Tab::Skins => "Skins",
-            Tab::Worlds => "Worlds",
             Tab::Launch => "Launch",
             Tab::More => "More",
         }
