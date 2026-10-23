@@ -11,6 +11,38 @@ async function api(path, options = {}) {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
+    const usernameInput = document.getElementById('username');
+    const previewContainer = document.getElementById('skin-preview-container');
+
+    // Загрузка реальных данных профиля
+    async function loadProfile() {
+        try {
+            const data = await api('/api/profile');
+            if (data.username) {
+                usernameInput.value = data.username;
+            }
+            if (data.has_skin) {
+                renderSkinImage(`/api/skin?t=${token}`);
+            }
+        } catch (err) {
+            console.error('Failed to load profile:', err);
+        }
+    }
+
+    function renderSkinImage(src) {
+        previewContainer.innerHTML = '';
+        const img = document.createElement('img');
+        img.src = src;
+        img.alt = 'Skin preview';
+        img.style.maxWidth = '100%';
+        img.style.maxHeight = '100%';
+        img.style.imageRendering = 'pixelated';
+        img.style.borderRadius = '4px';
+        previewContainer.appendChild(img);
+    }
+
+    loadProfile();
+
     // 1. Навигация по вкладкам справа
     const navButtons = document.querySelectorAll('.nav-btn');
     navButtons.forEach(btn => {
@@ -26,7 +58,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // 2. Локальное превью выбранного скина
     const skinInput = document.getElementById('skin-file-input');
-    const previewContainer = document.getElementById('skin-preview-container');
 
     skinInput.addEventListener('change', (e) => {
         const file = e.target.files[0];
@@ -34,24 +65,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const reader = new FileReader();
         reader.onload = (event) => {
-            previewContainer.innerHTML = '';
-            
-            const img = document.createElement('img');
-            img.src = event.target.result;
-            img.alt = 'Skin preview';
-            img.style.maxWidth = '100%';
-            img.style.maxHeight = '100%';
-            img.style.imageRendering = 'pixelated'; // Чтобы пиксели не размывались
-            img.style.borderRadius = '4px';
-
-            previewContainer.appendChild(img);
+            renderSkinImage(event.target.result);
         };
         reader.readAsDataURL(file);
     });
 
     // 3. Сохранение имени игрока
     const saveUsernameBtn = document.getElementById('save-username-btn');
-    const usernameInput = document.getElementById('username');
 
     saveUsernameBtn.addEventListener('click', async () => {
         const username = usernameInput.value.trim();
