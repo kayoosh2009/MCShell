@@ -86,6 +86,9 @@ pub fn draw(f: &mut Frame, app: &App) {
                 left.push(kv("Username", app.profile.username.clone()));
                 left.push(kv("UUID", app.profile.offline_uuid()));
             }
+            left.push(Line::from(""));
+            left.push(dim("Press [Enter] / [Space] to open Web Dashboard"));
+
             use crate::stats::{fmt_ago, fmt_bytes, fmt_duration};
             let s = crate::stats::snapshot();
             let biggest = match &s.biggest_world {
@@ -103,138 +106,51 @@ pub fn draw(f: &mut Frame, app: &App) {
             stats.push(kv("Mods", format!("{} ({})", s.mods, fmt_bytes(s.mods_bytes))));
             stats.push(kv("Texture packs", format!("{} ({})", s.packs, fmt_bytes(s.packs_bytes))));
             stats.push(kv("Launcher data", fmt_bytes(s.data_bytes)));
-            keys = vec![("e", "edit username"), ("←/→ Tab", "switch tab"), ("q", "quit")];
-        }
-        Tab::Versions => {
-            if let InputMode::EditingVersion = app.input_mode {
-                left.push(kv("Version id", format!("{}_", app.input_buffer)));
-            }
-            left.push(kv("Installed", app.installed.join(", ")));
-            left.push(Line::from(""));
-            for (i, v) in app.remote_versions.iter().take(25).enumerate() {
-                left.push(item(i, format!("{} ({})", v.id, v.kind)));
-            }
+
             keys = vec![
-                ("i", "type version id"),
-                ("r", "fetch version list"),
-                ("↑/↓", "select"),
-                ("Enter", "install selected"),
-                ("f", "install Fabric"),
-            ];
-        }
-        Tab::Mods => {
-            if app.mods.is_empty() {
-                left.push(dim("no mods yet"));
-            }
-            for (i, m) in app.mods.iter().enumerate() {
-                let c = if m.enabled { "[x]" } else { "[ ]" };
-                left.push(item(i, format!("{c} {}", m.name)));
-            }
-            keys = vec![
-                ("drop .jar", "add mod"),
-                ("↑/↓", "select"),
-                ("Space", "enable / disable"),
-                ("d", "delete"),
-                ("o", "open folder"),
-                ("b", "browse online"),
-            ];
-        }
-        Tab::Skins => {
-            left.push(kv("Skin", if app.has_skin { "set" } else { "not set" }.to_string()));
-            left.push(Line::from(""));
-            left.extend(key_lines(&[("drop PNG", "set skin")]));
-            keys = vec![];
-        }
-        Tab::Textures => {
-            if app.packs.is_empty() {
-                left.push(dim("no texture packs yet"));
-            }
-            for (i, p) in app.packs.iter().enumerate() {
-                left.push(item(i, p.clone()));
-            }
-            left.push(Line::from(""));
-            left.push(dim("enable in game: Options > Resource Packs"));
-            keys = vec![
-                ("drop .zip", "add pack"),
-                ("↑/↓", "select"),
-                ("d", "delete"),
-                ("o", "open folder"),
-                ("b", "browse online"),
-            ];
-        }
-        Tab::Worlds => {
-            if app.worlds.is_empty() {
-                left.push(dim("no worlds yet"));
-            }
-            for (i, w) in app.worlds.iter().enumerate() {
-                left.push(item(i, w.clone()));
-            }
-            keys = vec![
-                ("drop .zip", "import world"),
-                ("↑/↓", "select"),
-                ("e", "export to home"),
-                ("o", "open folder"),
+                ("Enter/Space", "open Web Dashboard"),
+                ("e", "edit username"),
+                ("←/→ Tab", "switch tab"),
+                ("q", "quit"),
             ];
         }
         Tab::Launch => {
-            let c1 = if app.hide_after_launch { "[x]" } else { "[ ]" };
-            let c2 = if app.show_logs_separate { "[x]" } else { "[ ]" };
-            left.push(kv("Options", String::new()));
-            left.push(Line::from(format!("  {c1} hide launcher after launch")));
-            left.push(Line::from(format!("  {c2} logs in separate terminal")));
-            left.push(Line::from(""));
-            for (i, v) in app.installed.iter().enumerate() {
-                left.push(item(i, v.clone()));
+            if app.installed.is_empty() {
+                left.push(dim("no versions installed yet"));
+                left.push(dim("use Web Dashboard to download versions"));
+            } else {
+                for (i, v) in app.installed.iter().enumerate() {
+                    left.push(item(i, v.clone()));
+                }
             }
             keys = vec![
                 ("↑/↓", "select version"),
-                ("Enter", "launch"),
+                ("Enter", "launch game"),
                 ("d", "delete version"),
-                ("1", "toggle hide launcher"),
-                ("2", "toggle separate logs"),
             ];
         }
-                Tab::More => {
-            let pages = ["1 Settings", "2 Java", "3 About"];
-            let mut hdr: Vec<Span> = Vec::new();
-            for (i, p) in pages.iter().enumerate() {
-                let st = if i == app.more_page {
-                    Style::default().fg(Color::Green).add_modifier(Modifier::BOLD | Modifier::UNDERLINED)
-                } else {
-                    Style::default().fg(Color::DarkGray)
-                };
-                hdr.push(Span::styled(format!(" {p} "), st));
-            }
-            left.push(Line::from(hdr));
+        Tab::Faq => {
+            use crate::settings::{DISCORD, EMAIL, GITHUB, TELEGRAM};
+            left.push(Line::styled(" FAQ & Information", Style::default().fg(Color::DarkGray).add_modifier(Modifier::BOLD)));
             left.push(Line::from(""));
+            left.push(dim("• Fast & lightweight Minecraft launcher with TUI."));
+            left.push(dim("• All mods, skins, and advanced settings are configured via Web UI."));
+            left.push(dim("• Press Enter on Profile tab to launch local Web panel."));
+            left.push(Line::from(""));
+            left.push(Line::styled(" Links / Contacts", Style::default().fg(Color::DarkGray).add_modifier(Modifier::BOLD)));
+            left.push(Line::styled(format!("   [g] GitHub:   {GITHUB}"), Style::default().fg(Color::DarkGray)));
+            left.push(Line::styled(format!("   [d] Discord:  {DISCORD}"), Style::default().fg(Color::DarkGray)));
+            left.push(Line::styled(format!("   [t] Telegram: {TELEGRAM}"), Style::default().fg(Color::DarkGray)));
+            left.push(Line::styled(format!("   [m] Email:    {EMAIL}"), Style::default().fg(Color::DarkGray)));
 
-            match app.more_page {
-                0 => {
-                    let rows = [
-                        ("Discord presence", app.discord_on),
-                        ("Hide launcher after launch", app.hide_after_launch),
-                        ("Logs in separate terminal", app.show_logs_separate),
-                    ];
-                    for (i, (name, on)) in rows.iter().enumerate() {
-                        let c = if *on { "[x]" } else { "[ ]" };
-                        left.push(item(i, format!("{c} {name}")));
-                    }
-                    keys = vec![("↑/↓", "select"), ("Enter", "toggle yes / no"), ("1 2 3", "switch page")];
-                }
-                1 => {
-                    left.push(dim("Launcher picks the right Java automatically."));
-                    left.push(dim("If it is not installed, system java is used."));
-                    left.push(Line::from(""));
-                    for (i, (m, note)) in crate::java::JAVAS.iter().enumerate() {
-                        let st = if crate::java::is_installed(*m) { "installed" } else { "not installed" };
-                        left.push(item(i, format!("Java {m:<3} {st:<14} {note}")));
-                    }
-                    keys = vec![("↑/↓", "select"), ("Enter", "download"), ("d", "delete"), ("1 2 3", "switch page")];
-                }
-                _ => {
-                    use crate::settings::{DISCORD, EMAIL, GITHUB, TELEGRAM};
-                    left.push(head("MCShell"));
-                    left.push(dim("A fast terminal launcher for Minecraft."));
+            keys = vec![
+                ("g", "open GitHub"),
+                ("d", "open Discord"),
+                ("t", "open Telegram"),
+                ("m", "write email"),
+            ];
+        }
+    } for Minecraft."));
                     left.push(dim("Fabric, mods, texture packs, worlds and skins"));
                     left.push(dim("in one place, with an online Modrinth browser."));
                     left.push(Line::from(""));
