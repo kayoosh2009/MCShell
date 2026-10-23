@@ -363,31 +363,7 @@ impl App {
                         self.pending_launch = Some(id);
                     }
                 }
-                KeyCode::Char(c @ '1'..='3') if self.current_tab == Tab::More => {
-                    self.more_page = c as usize - '1' as usize;
-                    self.list_index = 0;
-                }
-                KeyCode::Down if self.current_tab == Tab::More && self.more_len() > 0 => {
-                    self.list_index = (self.list_index + 1) % self.more_len();
-                }
-                KeyCode::Up if self.current_tab == Tab::More && self.more_len() > 0 => {
-                    self.list_index = (self.list_index + self.more_len() - 1) % self.more_len();
-                }
-                KeyCode::Enter | KeyCode::Char(' ') if self.current_tab == Tab::More && self.more_page == 0 => {
-                    self.toggle_setting(self.list_index);
-                }
-                KeyCode::Enter if self.current_tab == Tab::More && self.more_page == 1 => {
-                    let major = crate::java::JAVAS[self.list_index].0;
-                    self.spawn_java_install(major);
-                }
-                KeyCode::Char('d') | KeyCode::Delete if self.current_tab == Tab::More && self.more_page == 1 => {
-                    let major = crate::java::JAVAS[self.list_index].0;
-                    self.status = match crate::java::remove(major) {
-                        Ok(()) => format!("java {major} removed"),
-                        Err(e) => format!("remove error: {e}"),
-                    };
-                }
-                KeyCode::Char(c @ ('g' | 'm' | 'd' | 't')) if self.current_tab == Tab::More && self.more_page == 2 => {
+                KeyCode::Char(c @ ('g' | 'm' | 'd' | 't')) if self.current_tab == Tab::Faq => {
                     use crate::settings::{DISCORD, EMAIL, GITHUB, TELEGRAM};
                     match c {
                         'g' => window::open_url(GITHUB),
