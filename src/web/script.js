@@ -27,11 +27,12 @@ document.addEventListener('DOMContentLoaded', () => {
         skinViewer.animation = new skinview3d.IdleAnimation();
         skinViewer.animation.speed = 0.6;
         
-        // Включаем вращение мышью
-        const control = skinview3d.createOrbitControls(skinViewer);
-        control.enableRotate = true;
-        control.enableZoom = false;
-        control.enablePan = false;
+        // Включаем вращение мышью (в v3 встроен напрямую)
+        if (skinViewer.controls) {
+            skinViewer.controls.enableRotate = true;
+            skinViewer.controls.enableZoom = false;
+            skinViewer.controls.enablePan = false;
+        }
     }
 
     // 2. Загрузка профиля и статистики с бэкенда

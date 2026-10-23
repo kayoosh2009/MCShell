@@ -38,14 +38,11 @@ impl Tab {
 pub enum InputMode {
     Normal,
     EditingUsername,
-    EditingVersion,
     ConfirmDelete,
 }
 
 pub enum DeleteTarget {
     Version(String),
-    Mod(mods::ModEntry),
-    Pack(String),
 }
 
 pub struct App {
@@ -108,51 +105,6 @@ impl App {
         }
     }
 
-    fn save_settings(&self) {
-        crate::settings::save(&crate::settings::Settings {
-            discord: self.discord_on,
-            hide_after_launch: self.hide_after_launch,
-            show_logs_separate: self.show_logs_separate,
-        });
-    }
-
-    fn toggle_setting(&mut self, i: usize) {
-        match i {
-            0 => {
-                self.discord_on = !self.discord_on;
-                if self.discord_on {
-                    crate::discord::init();
-                } else {
-                    crate::discord::shutdown();
-                }
-            }
-            1 => self.hide_after_launch = !self.hide_after_launch,
-            _ => self.show_logs_separate = !self.show_logs_separate,
-        }
-        self.save_settings();
-    }
-
-    fn more_len(&self) -> usize {
-        match self.more_page {
-            0 => 3,
-            1 => crate::java::JAVAS.len(),
-            _ => 0,
-        }
-    }
-
-    fn spawn_java_install(&mut self, major: u32) {
-        self.progress_log.clear();
-        let (tx, rx) = mpsc::channel();
-        self.progress_rx = Some(rx);
-        self.status = format!("installing java {major}...");
-        std::thread::spawn(move || {
-            let progress = |msg: String| { let _ = tx.send(msg); };
-            if let Err(e) = crate::java::install(major, &progress) {
-                let _ = tx.send(format!("error: {e}"));
-            }
-        });
-    }
-
     fn next_tab(&mut self) {
         let i = (self.current_tab.index() + 1) % Tab::ALL.len();
         self.current_tab = Tab::ALL[i];
@@ -179,27 +131,6 @@ impl App {
             let progress = |msg: String| { let _ = tx.send(msg); };
             if let Err(e) = versions::install_version(&id, &progress) {
                 let _ = tx.send(format!("error: {e}"));
-            }
-        });
-    }
-
-    fn spawn_fabric_install(&mut self, mc_version: String) {
-        self.progress_log.clear();
-        let (tx, rx) = mpsc::channel();
-        self.progress_rx = Some(rx);
-        self.status = format!("installing fabric for {mc_version}...");
-        std::thread::spawn(move || {
-            let progress = |msg: String| { let _ = tx.send(msg); };
-            match fabric::fetch_loader_versions(&mc_version) {
-                Ok(loaders) => match loaders.first() {
-                    Some(loader) => {
-                        if let Err(e) = fabric::install_fabric(&mc_version, loader, &progress) {
-                            let _ = tx.send(format!("error: {e}"));
-                        }
-                    }
-                    None => { let _ = tx.send("no fabric loader found".to_string()); }
-                },
-                Err(e) => { let _ = tx.send(format!("error: {e}")); }
             }
         });
     }
@@ -250,26 +181,6 @@ impl App {
                 }
                 Err(e) => self.status = format!("delete error: {e}"),
             },
-            DeleteTarget::Mod(m) => {
-                self.status = match mods::remove(&m) {
-                    Ok(()) => format!("removed {}", m.name),
-                    Err(e) => format!("remove error: {e}"),
-                };
-                self.mods = mods::list();
-                if self.list_index >= self.mods.len() && self.list_index > 0 {
-                    self.list_index -= 1;
-                }
-            }
-            DeleteTarget::Pack(name) => {
-                self.status = match packs::remove(&name) {
-                    Ok(()) => format!("removed {name}"),
-                    Err(e) => format!("remove error: {e}"),
-                };
-                self.packs = packs::list();
-                if self.list_index >= self.packs.len() && self.list_index > 0 {
-                    self.list_index -= 1;
-                }
-            }
         }
     }
 
@@ -345,6 +256,10 @@ impl App {
                 KeyCode::Char('q') | KeyCode::Esc => self.should_quit = true,
                 KeyCode::Right | KeyCode::Tab => self.next_tab(),
                 KeyCode::Left | KeyCode::BackTab => self.prev_tab(),
+                KeyCode::Char('e') if self.current_tab == Tab::Profile => {
+                    self.input_mode = InputMode::EditingUsername;
+                    self.input_buffer = self.profile.username.clone();
+                }
                 KeyCode::Enter | KeyCode::Char(' ') if self.current_tab == Tab::Profile => {
                     self.start_browse();
                 }
@@ -380,20 +295,6 @@ impl App {
                     if !name.is_empty() {
                         self.profile.set_username(name);
                         self.status = "username saved".to_string();
-                    }
-                    self.input_mode = InputMode::Normal;
-                }
-                KeyCode::Esc => self.input_mode = InputMode::Normal,
-                KeyCode::Backspace => { self.input_buffer.pop(); }
-                KeyCode::Char(c) => self.input_buffer.push(c),
-                _ => {}
-            },
-            InputMode::EditingVersion => match code {
-                KeyCode::Enter => {
-                    let id = self.input_buffer.trim().to_string();
-                    if !id.is_empty() {
-                        self.last_vanilla = Some(id.clone());
-                        self.spawn_version_install(id);
                     }
                     self.input_mode = InputMode::Normal;
                 }
