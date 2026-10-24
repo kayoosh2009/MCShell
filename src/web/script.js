@@ -74,8 +74,45 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    // Функция применения фонового изображения с затемнением
+    function applyBackground(url) {
+        document.body.style.backgroundImage = `linear-gradient(rgba(18, 18, 20, 0.82), rgba(18, 18, 20, 0.82)), url("${url}")`;
+    }
+
+    // Загрузка сохранённого фона при старте
+    function loadBackground() {
+        const bgUrl = `/api/background?t=${token}`;
+        const img = new Image();
+        img.onload = () => applyBackground(bgUrl);
+        img.src = bgUrl;
+    }
+
+    // Смена фона пользователем
+    const bgInput = document.getElementById('bg-file-input');
+    if (bgInput) {
+        bgInput.addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            // Мгновенно отображаем локально
+            const localUrl = URL.createObjectURL(file);
+            applyBackground(localUrl);
+
+            // Отправляем файл на сервер для постоянного сохранения
+            try {
+                await fetch(`/api/background?t=${token}`, {
+                    method: 'POST',
+                    body: file
+                });
+            } catch (err) {
+                console.error('Failed to save background:', err);
+            }
+        });
+    }
+
     loadProfile();
     loadArt();
+    loadBackground();
 
     // 3. Выбор и локальный предпросмотр скина в 3D
     const skinInput = document.getElementById('skin-file-input');

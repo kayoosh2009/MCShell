@@ -27,10 +27,14 @@
 
 body {
     background-color: var(--bg-main);
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
     color: var(--text-white);
     height: 100vh;
     width: 100vw;
     overflow: hidden;
+    transition: background-image 0.3s ease;
 }
 
 /* Полноэкранный контейнер без рамок */
@@ -197,11 +201,46 @@ body {
 /* Боковая панель справа */
 .sidebar-nav {
     width: 260px;
-    background: var(--bg-sidebar);
+    background: rgba(24, 24, 27, 0.88);
+    backdrop-filter: blur(16px);
     border-left: 1px solid var(--border-color);
     display: flex;
     flex-direction: column;
     padding: 36px 20px 24px;
+}
+
+/* Кнопка смены фона в нижнем правом углу рабочей области */
+.bg-picker-btn {
+    position: fixed;
+    bottom: 24px;
+    right: 284px;
+    width: 38px;
+    height: 38px;
+    background: var(--bg-element);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    z-index: 10;
+    transition: background 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
+}
+
+.bg-picker-btn:hover {
+    background: var(--bg-element-hover);
+    border-color: #52525b;
+}
+
+.bg-picker-btn:active {
+    transform: scale(0.94);
+}
+
+.bg-picker-btn img {
+    width: 20px;
+    height: 20px;
+    object-fit: contain;
+    opacity: 0.8;
 }
 
 .nav-header {
