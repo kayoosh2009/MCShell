@@ -257,20 +257,15 @@ body {
 /* Фиксированный ASCII-арт в левом нижнем углу */
 .ascii-art-box {
     position: fixed;
-    bottom: 20px;
+    bottom: 24px;
     left: 48px;
     font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Courier New", monospace;
-    font-size: 5.5px;
+    font-size: 8px;
     line-height: 1;
-    letter-spacing: -0.5px;
-    color: #3f3f46;
+    letter-spacing: 0;
+    color: #f4f4f5;
     user-select: none;
     pointer-events: none;
     white-space: pre;
     z-index: 10;
-    transition: color 0.2s ease;
-}
-
-.ascii-art-box:hover {
-    color: #71717a;
 }
