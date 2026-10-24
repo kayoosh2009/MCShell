@@ -243,6 +243,116 @@ body {
     opacity: 0.8;
 }
 
+/* Модальное окно выбора обоев */
+.modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: rgba(0, 0, 0, 0.65);
+    backdrop-filter: blur(8px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+    transition: opacity 0.2s ease;
+}
+
+.modal-overlay.hidden {
+    display: none;
+}
+
+.modal-card {
+    background: var(--bg-sidebar);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    width: 520px;
+    padding: 24px;
+    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.6);
+}
+
+.modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+}
+
+.modal-header h3 {
+    font-size: 17px;
+    font-weight: 600;
+    color: var(--text-white);
+}
+
+.modal-close-btn {
+    background: transparent;
+    border: none;
+    color: var(--text-dim);
+    font-size: 22px;
+    cursor: pointer;
+    line-height: 1;
+    transition: color 0.15s ease;
+}
+
+.modal-close-btn:hover {
+    color: var(--text-white);
+}
+
+/* Сетка выбора обоев */
+.wallpaper-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+}
+
+.wallpaper-item {
+    background: var(--bg-element);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    overflow: hidden;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    transition: all 0.2s ease;
+}
+
+.wallpaper-item:hover {
+    border-color: #52525b;
+    transform: translateY(-2px);
+}
+
+.wallpaper-item img {
+    width: 100%;
+    height: 85px;
+    object-fit: cover;
+    background: #000;
+}
+
+.wallpaper-item span {
+    padding: 8px;
+    font-size: 12px;
+    color: var(--text-muted);
+}
+
+.upload-item {
+    border: 1px dashed var(--border-color);
+    justify-content: center;
+    min-height: 120px;
+}
+
+.upload-item:hover {
+    border-color: var(--text-white);
+}
+
+.upload-icon {
+    font-size: 26px;
+    color: var(--text-dim);
+    margin-bottom: 4px;
+}
+
 .nav-header {
     margin-bottom: 32px;
     padding-left: 12px;
