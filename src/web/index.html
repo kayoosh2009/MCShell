@@ -76,9 +76,24 @@
                 <img src="/elements/background.png" alt="Background">
             </button>
         </main>
+
+        <!-- Правая панель навигации (на своём месте) -->
+        <aside class="sidebar-nav">
+            <div class="nav-header">
+            </div>
+            <nav class="nav-buttons">
+                <button class="nav-btn active" data-page="profile">Profile</button>
+                <button class="nav-btn" data-page="settings">Settings</button>
+                <button class="nav-btn" data-page="mods">Mods & Packs</button>
+                <button class="nav-btn" data-page="versions">Versions</button>
+            </nav>
+            <div class="nav-footer">
+                <span id="connection-status">● Connected (127.0.0.1)</span>
+            </div>
+        </aside>
     </div>
 
-    <!-- Модальное окно выбора обоев -->
+    <!-- Модальное окно выбора обоев поверх всего интерфейса -->
     <div id="bg-modal" class="modal-overlay hidden">
         <div class="modal-card">
             <div class="modal-header">
@@ -91,7 +106,7 @@
                     <img src="/elements/def-backgroud.png" alt="Default Wallpaper">
                     <span>Default</span>
                 </div>
-                <!-- Пользовательский фон (если загружен) -->
+                <!-- Пользовательский фон -->
                 <div class="wallpaper-item" id="custom-bg-item" data-bg="/api/background">
                     <img id="custom-bg-thumb" src="/api/background" alt="Custom">
                     <span>Custom</span>
@@ -104,6 +119,7 @@
                 </label>
             </div>
         </div>
+    </div>
 
         <aside class="sidebar-nav">
             <div class="nav-header">
