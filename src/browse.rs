@@ -18,6 +18,7 @@ const INDEX_HTML: &str = include_str!("web/index.html");
 const STYLE_CSS: &str = include_str!("web/style.css");
 const SCRIPT_JS: &str = include_str!("web/script.js");
 const ASCII_ART: &str = include_str!("web/elements/mcshell-acii.txt");
+const BG_ICON: &[u8] = include_bytes!("web/elements/background.png");
 
 struct State {
     token: String,
@@ -170,6 +171,7 @@ fn handle(mut stream: TcpStream, state: &Arc<State>) -> Result<()> {
         ("GET", "/") => return respond(&mut stream, 403, "text/plain", b"forbidden"),
         ("GET", "/style.css") => return respond(&mut stream, 200, "text/css", STYLE_CSS.as_bytes()),
         ("GET", "/script.js") => return respond(&mut stream, 200, "text/javascript", SCRIPT_JS.as_bytes()),
+        ("GET", "/elements/background.png") => return respond(&mut stream, 200, "image/png", BG_ICON),
         _ => {}
     }
 
@@ -180,6 +182,33 @@ fn handle(mut stream: TcpStream, state: &Arc<State>) -> Result<()> {
     match (method, path) {
         ("GET", "/api/art") => {
             json_response(&mut stream, 200, &json!({ "art": ASCII_ART }))
+        }
+        ("GET", "/api/background") => {
+            let bg_path = paths::data_dir().join("background.png");
+            if bg_path.is_file() {
+                if let Ok(bytes) = std::fs::read(bg_path) {
+                    return respond(&mut stream, 200, "image/png", &bytes);
+                }
+            }
+            respond(&mut stream, 404, "text/plain", b"no background")
+        }
+        ("POST", "/api/background") => {
+            let body_bytes = req
+                .as_bytes()
+                .windows(4)
+                .position(|w| w == b"\r\n\r\n")
+                .map(|pos| &buf[pos + 4..n])
+                .unwrap_or(&[]);
+
+            let _ = std::fs::create_dir_all(paths::data_dir());
+            let bg_path = paths::data_dir().join("background.png");
+            match std::fs::write(bg_path, body_bytes) {
+                Ok(()) => {
+                    let _ = state.tx.lock().unwrap().send("background updated".to_string());
+                    json_response(&mut stream, 200, &json!({ "ok": true }))
+                }
+                Err(e) => json_response(&mut stream, 500, &json!({ "ok": false, "error": e.to_string() })),
+            }
         }
         ("GET", "/api/profile") => {
             let p = Profile::load();
