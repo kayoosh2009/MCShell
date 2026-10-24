@@ -62,7 +62,20 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    async function loadArt() {
+        try {
+            const data = await api('/api/art');
+            const artEl = document.getElementById('ascii-art');
+            if (artEl && data.art) {
+                artEl.textContent = data.art;
+            }
+        } catch (err) {
+            console.error('Failed to load ascii art:', err);
+        }
+    }
+
     loadProfile();
+    loadArt();
 
     // 3. Выбор и локальный предпросмотр скина в 3D
     const skinInput = document.getElementById('skin-file-input');

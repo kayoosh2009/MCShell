@@ -17,6 +17,7 @@ const USER_AGENT: &str = "MCShell/0.1.0 (github.com/kayoosh2009/MCShell)";
 const INDEX_HTML: &str = include_str!("web/index.html");
 const STYLE_CSS: &str = include_str!("web/style.css");
 const SCRIPT_JS: &str = include_str!("web/script.js");
+const ASCII_ART: &str = include_str!("web/elements/mcshell-acii.txt");
 
 struct State {
     token: String,
@@ -177,6 +178,9 @@ fn handle(mut stream: TcpStream, state: &Arc<State>) -> Result<()> {
     }
 
     match (method, path) {
+        ("GET", "/api/art") => {
+            json_response(&mut stream, 200, &json!({ "art": ASCII_ART }))
+        }
         ("GET", "/api/profile") => {
             let p = Profile::load();
             let s = stats::snapshot();
