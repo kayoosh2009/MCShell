@@ -74,31 +74,48 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // Функция применения фонового изображения с затемнением
+    // 1. Применение фонового изображения с затемнением
     function applyBackground(url) {
         document.body.style.backgroundImage = `linear-gradient(rgba(18, 18, 20, 0.82), rgba(18, 18, 20, 0.82)), url("${url}")`;
     }
 
-    // Загрузка сохранённого фона при старте
-    function loadBackground() {
-        const bgUrl = `/api/background?t=${token}`;
-        const img = new Image();
-        img.onload = () => applyBackground(bgUrl);
-        img.src = bgUrl;
+    // 2. Модальное окно выбора обоев
+    const bgModal = document.getElementById('bg-modal');
+    const openBgModalBtn = document.getElementById('open-bg-modal-btn');
+    const closeBgModalBtn = document.getElementById('close-bg-modal-btn');
+    const bgInput = document.getElementById('bg-file-input');
+    const customBgThumb = document.getElementById('custom-bg-thumb');
+
+    if (openBgModalBtn && bgModal) {
+        openBgModalBtn.addEventListener('click', () => bgModal.classList.remove('hidden'));
+        closeBgModalBtn.addEventListener('click', () => bgModal.classList.add('hidden'));
+        bgModal.addEventListener('click', (e) => {
+            if (e.target === bgModal) bgModal.classList.add('hidden');
+        });
     }
 
-    // Смена фона пользователем
-    const bgInput = document.getElementById('bg-file-input');
+    // Выбор обоев из карточек
+    document.querySelectorAll('.wallpaper-item[data-bg]').forEach(item => {
+        item.addEventListener('click', () => {
+            const bgUrl = item.dataset.bg;
+            applyBackground(bgUrl);
+            localStorage.setItem('mcshell_bg', bgUrl);
+            bgModal.classList.add('hidden');
+        });
+    });
+
+    // Загрузка нового файла обоев
     if (bgInput) {
         bgInput.addEventListener('change', async (e) => {
             const file = e.target.files[0];
             if (!file) return;
 
-            // Мгновенно отображаем локально
             const localUrl = URL.createObjectURL(file);
             applyBackground(localUrl);
+            localStorage.setItem('mcshell_bg', `/api/background?t=${token}`);
+            if (customBgThumb) customBgThumb.src = localUrl;
+            bgModal.classList.add('hidden');
 
-            // Отправляем файл на сервер для постоянного сохранения
             try {
                 await fetch(`/api/background?t=${token}`, {
                     method: 'POST',
@@ -110,16 +127,23 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // Восстановление выбранного фона при старте (по умолчанию elements/def-backgroud.png)
+    function loadBackground() {
+        const saved = localStorage.getItem('mcshell_bg') || '/elements/def-backgroud.png';
+        applyBackground(saved);
+    }
+
     loadProfile();
     loadArt();
     loadBackground();
 
-    // 3. Выбор и локальный предпросмотр скина в 3D
+    // 3. Выбор скина, превью в 3D и сохранение в папку игры
     const skinInput = document.getElementById('skin-file-input');
-    skinInput.addEventListener('change', (e) => {
+    skinInput.addEventListener('change', async (e) => {
         const file = e.target.files[0];
         if (!file) return;
 
+        // Мгновенный показ в 3D
         const reader = new FileReader();
         reader.onload = (event) => {
             if (skinViewer) {
@@ -127,6 +151,17 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         };
         reader.readAsDataURL(file);
+
+        // Отправка файла в бэкенд для сохранения в папку игры
+        try {
+            await fetch(`/api/skin?t=${token}`, {
+                method: 'POST',
+                body: file
+            });
+            console.log('Skin saved to Minecraft game folder!');
+        } catch (err) {
+            console.error('Failed to upload skin to game directory:', err);
+        }
     });
 
     // 4. Сохранение никнейма
