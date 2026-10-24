@@ -71,12 +71,39 @@
             <!-- ASCII Art в левом нижнем углу -->
             <pre id="ascii-art" class="ascii-art-box"></pre>
 
-            <!-- Кнопка смены фона -->
-            <label class="bg-picker-btn" title="Change Background">
+            <!-- Кнопка открытия модалки фонов -->
+            <button id="open-bg-modal-btn" class="bg-picker-btn" title="Change Background">
                 <img src="/elements/background.png" alt="Background">
-                <input type="file" id="bg-file-input" accept="image/*" hidden>
-            </label>
+            </button>
         </main>
+    </div>
+
+    <!-- Модальное окно выбора обоев -->
+    <div id="bg-modal" class="modal-overlay hidden">
+        <div class="modal-card">
+            <div class="modal-header">
+                <h3>Select Wallpaper</h3>
+                <button id="close-bg-modal-btn" class="modal-close-btn">&times;</button>
+            </div>
+            <div class="wallpaper-grid">
+                <!-- Дефолтный фон -->
+                <div class="wallpaper-item" data-bg="/elements/def-backgroud.png">
+                    <img src="/elements/def-backgroud.png" alt="Default Wallpaper">
+                    <span>Default</span>
+                </div>
+                <!-- Пользовательский фон (если загружен) -->
+                <div class="wallpaper-item" id="custom-bg-item" data-bg="/api/background">
+                    <img id="custom-bg-thumb" src="/api/background" alt="Custom">
+                    <span>Custom</span>
+                </div>
+                <!-- Загрузка нового файла -->
+                <label class="wallpaper-item upload-item">
+                    <div class="upload-icon">+</div>
+                    <span>Upload New</span>
+                    <input type="file" id="bg-file-input" accept="image/*" hidden>
+                </label>
+            </div>
+        </div>
 
         <aside class="sidebar-nav">
             <div class="nav-header">
