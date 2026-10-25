@@ -53,21 +53,15 @@ pub struct App {
     pub profile: Profile,
     pub input_mode: InputMode,
     pub input_buffer: String,
-    pub has_skin: bool,
     pub installed: Vec<String>,
-    pub remote_versions: Vec<versions::VersionEntry>,
     pub list_index: usize,
-    pub last_vanilla: Option<String>,
     pub mods: Vec<mods::ModEntry>,
     pub packs: Vec<String>,
-    pub worlds: Vec<String>,
     pub browse_launch: Option<(Instant, String)>,
     browse: Option<browse::BrowseServer>,
     pending_delete: Option<DeleteTarget>,
     pub hide_after_launch: bool,
     pub show_logs_separate: bool,
-    pub discord_on: bool,
-    pub more_page: usize,
     pub crash: Option<crate::logs::Report>,
     pending_launch: Option<String>,
     progress_rx: Option<Receiver<String>>,
@@ -84,21 +78,15 @@ impl App {
             profile: Profile::load(),
             input_mode: InputMode::Normal,
             input_buffer: String::new(),
-            has_skin: skin::has_skin(),
             installed: versions::installed_versions(),
-            remote_versions: Vec::new(),
             list_index: 0,
-            last_vanilla: None,
             mods: mods::list(),
             packs: packs::list(),
-            worlds: worlds::list(),
             browse_launch: None,
             browse: None,
             pending_delete: None,
             hide_after_launch: st.hide_after_launch,
             show_logs_separate: st.show_logs_separate,
-            discord_on: st.discord,
-            more_page: 0,
             crash: None,
             pending_launch: None,
             progress_rx: None,
@@ -120,19 +108,6 @@ impl App {
 
     fn on_tab_change(&mut self) {
         self.list_index = 0;
-    }
-
-    fn spawn_version_install(&mut self, id: String) {
-        self.progress_log.clear();
-        let (tx, rx) = mpsc::channel();
-        self.progress_rx = Some(rx);
-        self.status = format!("installing {id}...");
-        std::thread::spawn(move || {
-            let progress = |msg: String| { let _ = tx.send(msg); };
-            if let Err(e) = versions::install_version(&id, &progress) {
-                let _ = tx.send(format!("error: {e}"));
-            }
-        });
     }
 
     fn poll_progress(&mut self) {
