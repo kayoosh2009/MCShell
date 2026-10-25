@@ -185,14 +185,58 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
+    // 4. Загрузка установленных версий
+    async function loadVersions() {
+        const listEl = document.getElementById('installed-versions-list');
+        if (!listEl) return;
+
+        try {
+            const targets = await api('/api/targets');
+            if (!targets || targets.length === 0) {
+                listEl.innerHTML = '<span class="empty-text">No versions installed yet. Install one above!</span>';
+                return;
+            }
+
+            listEl.innerHTML = '';
+            targets.forEach(item => {
+                const isFabric = item.loader === 'fabric';
+                const card = document.createElement('div');
+                card.className = 'version-card';
+                card.innerHTML = `
+                    <div class="version-info">
+                        <span class="version-name">${item.id}</span>
+                        <span class="version-badge ${isFabric ? 'fabric' : ''}">${isFabric ? 'Fabric' : 'Vanilla'}</span>
+                    </div>
+                `;
+                listEl.appendChild(card);
+            });
+        } catch (err) {
+            console.error('Failed to load versions:', err);
+            listEl.innerHTML = '<span class="empty-text">Error loading versions</span>';
+        }
+    }
+
     // 5. Навигация в боковом меню
     const navButtons = document.querySelectorAll('.nav-btn');
     navButtons.forEach(btn => {
         btn.addEventListener('click', () => {
             navButtons.forEach(b => b.classList.remove('active'));
             btn.classList.add('active');
+
             const page = btn.dataset.page;
-            console.log('Navigated to:', page);
+            
+            // Скрываем все вкладки
+            document.querySelectorAll('.tab-content').forEach(tab => tab.classList.add('hidden'));
+
+            // Показываем выбранную
+            const activeTab = document.getElementById(`tab-${page}`);
+            if (activeTab) {
+                activeTab.classList.remove('hidden');
+            }
+
+            if (page === 'versions') {
+                loadVersions();
+            }
         });
     });
 });
