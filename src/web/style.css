@@ -353,6 +353,92 @@ body {
     margin-bottom: 4px;
 }
 
+/* Переключение страниц */
+.tab-content.hidden {
+    display: none !important;
+}
+
+/* Секция версий */
+.versions-section {
+    max-width: 820px;
+}
+
+.section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 32px;
+}
+
+.section-header h2 {
+    font-size: 28px;
+    font-weight: 600;
+    color: var(--text-white);
+}
+
+.installed-versions-box h3 {
+    font-size: 13px;
+    color: var(--text-dim);
+    letter-spacing: 0.8px;
+    text-transform: uppercase;
+    margin-bottom: 16px;
+}
+
+.versions-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.version-card {
+    background: var(--bg-element);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 14px 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.version-card:hover {
+    background: var(--bg-element-hover);
+    border-color: #52525b;
+}
+
+.version-info {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.version-name {
+    font-size: 15px;
+    font-weight: 500;
+    color: var(--text-white);
+}
+
+.version-badge {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    padding: 3px 8px;
+    border-radius: 4px;
+    background: #27272a;
+    color: var(--text-muted);
+}
+
+.version-badge.fabric {
+    background: rgba(46, 204, 113, 0.15);
+    color: #2ecc71;
+}
+
+.empty-text {
+    color: var(--text-dim);
+    font-size: 14px;
+    padding: 12px 0;
+}
+
 .nav-header {
     margin-bottom: 32px;
     padding-left: 12px;

@@ -10,59 +10,99 @@
 <body>
     <div class="app-container">
         <main class="content-panel">
-            <div class="profile-section">
-                <h2>Player Profile</h2>
+            <div id="tab-profile" class="tab-content">
+                <div class="profile-section">
+                    <h2>Profile</h2>
 
-                <div class="profile-layout">
-                    <!-- Слева: 3D Скин -->
-                    <div class="skin-column">
-                        <div class="skin-canvas-wrapper">
-                            <canvas id="skin-viewer-canvas"></canvas>
+                    <div class="profile-layout">
+                        <!-- Слева: 3D Скин -->
+                        <div class="skin-column">
+                            <div class="skin-canvas-wrapper">
+                                <canvas id="skin-viewer-canvas"></canvas>
+                            </div>
+                            <label class="btn btn-secondary file-label">
+                                Change Skin (.png)
+                                <input type="file" id="skin-file-input" accept=".png" hidden>
+                            </label>
                         </div>
-                        <label class="btn btn-secondary file-label">
-                            Change Skin (.png)
-                            <input type="file" id="skin-file-input" accept=".png" hidden>
-                        </label>
+
+                        <!-- Справа: Имя и Статистика -->
+                        <div class="info-column">
+                            <div class="user-info">
+                                <label for="username">Username</label>
+                                <div class="input-group">
+                                    <input type="text" id="username" placeholder="Player" autocomplete="off">
+                                    <button id="save-username-btn" class="btn btn-primary">Save</button>
+                                </div>
+                            </div>
+
+                            <div class="stats-section">
+                                <h3>Statistics</h3>
+                                <div class="stats-grid">
+                                    <div class="stat-card">
+                                        <span class="stat-label">Playtime</span>
+                                        <span class="stat-value" id="stat-playtime">-</span>
+                                    </div>
+                                    <div class="stat-card">
+                                        <span class="stat-label">Launches</span>
+                                        <span class="stat-value" id="stat-launches">-</span>
+                                    </div>
+                                    <div class="stat-card">
+                                        <span class="stat-label">Last Played</span>
+                                        <span class="stat-value" id="stat-last-played">-</span>
+                                    </div>
+                                    <div class="stat-card">
+                                        <span class="stat-label">Worlds</span>
+                                        <span class="stat-value" id="stat-worlds">-</span>
+                                    </div>
+                                    <div class="stat-card">
+                                        <span class="stat-label">Mods Installed</span>
+                                        <span class="stat-value" id="stat-mods">-</span>
+                                    </div>
+                                    <div class="stat-card">
+                                        <span class="stat-label">Resource Packs</span>
+                                        <span class="stat-value" id="stat-packs">-</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Вкладка 2: Версии и Сборки -->
+            <div id="tab-versions" class="tab-content hidden">
+                <div class="versions-section">
+                    <div class="section-header">
+                        <h2>Versions & Builds</h2>
+                        <div class="versions-actions">
+                            <button id="open-install-modal-btn" class="btn btn-primary">+ Install Version</button>
+                        </div>
                     </div>
 
-                    <!-- Справа: Имя и Статистика -->
-                    <div class="info-column">
-                        <div class="user-info">
-                            <label for="username">Username</label>
-                            <div class="input-group">
-                                <input type="text" id="username" placeholder="Player" autocomplete="off">
-                                <button id="save-username-btn" class="btn btn-primary">Save</button>
-                            </div>
+                    <div class="installed-versions-box">
+                        <h3>Installed Versions</h3>
+                        <div id="installed-versions-list" class="versions-list">
+                            <span class="empty-text">Loading installed versions...</span>
                         </div>
+                    </div>
+                </div>
+            </div>
 
-                        <div class="stats-section">
-                            <h3>Statistics</h3>
-                            <div class="stats-grid">
-                                <div class="stat-card">
-                                    <span class="stat-label">Playtime</span>
-                                    <span class="stat-value" id="stat-playtime">-</span>
-                                </div>
-                                <div class="stat-card">
-                                    <span class="stat-label">Launches</span>
-                                    <span class="stat-value" id="stat-launches">-</span>
-                                </div>
-                                <div class="stat-card">
-                                    <span class="stat-label">Last Played</span>
-                                    <span class="stat-value" id="stat-last-played">-</span>
-                                </div>
-                                <div class="stat-card">
-                                    <span class="stat-label">Worlds</span>
-                                    <span class="stat-value" id="stat-worlds">-</span>
-                                </div>
-                                <div class="stat-card">
-                                    <span class="stat-label">Mods Installed</span>
-                                    <span class="stat-value" id="stat-mods">-</span>
-                                </div>
-                                <div class="stat-card">
-                                    <span class="stat-label">Resource Packs</span>
-                                    <span class="stat-value" id="stat-packs">-</span>
-                                </div>
-                            </div>
+            <!-- Вкладка 2: Версии и Сборки -->
+            <div id="tab-versions" class="tab-content hidden">
+                <div class="versions-section">
+                    <div class="section-header">
+                        <h2>Versions & Builds</h2>
+                        <div class="versions-actions">
+                            <button id="open-install-modal-btn" class="btn btn-primary">+ Install Version</button>
+                        </div>
+                    </div>
+
+                    <div class="installed-versions-box">
+                        <h3>Installed Versions</h3>
+                        <div id="installed-versions-list" class="versions-list">
+                            <span class="empty-text">Loading installed versions...</span>
                         </div>
                     </div>
                 </div>
