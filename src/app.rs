@@ -1,5 +1,5 @@
 use std::io;
-use std::sync::mpsc::{self, Receiver, TryRecvError};
+use std::sync::mpsc::{Receiver, TryRecvError};
 use std::time::{Duration, Instant};
 
 use anyhow::Result;
@@ -10,7 +10,7 @@ use ratatui::backend::CrosstermBackend;
 use ratatui::Terminal;
 
 use crate::profile::Profile;
-use crate::{browse, launcher, mods, packs, paths, skin, ui, versions, window, worlds};
+use crate::{browse, launcher, mods, packs, paths, ui, versions, window};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum Tab {
