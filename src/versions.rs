@@ -6,7 +6,6 @@ use std::sync::Mutex;
 use std::time::Instant;
 
 use anyhow::{anyhow, Result};
-use lazy_static::lazy_static;
 use serde_json::Value;
 
 use crate::paths;
@@ -16,10 +15,7 @@ pub static IS_DOWNLOADING: AtomicBool = AtomicBool::new(false);
 pub static DOWNLOADED_BYTES: AtomicU64 = AtomicU64::new(0);
 pub static TOTAL_BYTES: AtomicU64 = AtomicU64::new(0);
 pub static SPEED_BPS: AtomicU64 = AtomicU64::new(0);
-
-lazy_static! {
-    pub static ref CURRENT_VERSION_TASK: Mutex<String> = Mutex::new(String::new());
-}
+pub static CURRENT_VERSION_TASK: Mutex<String> = Mutex::new(String::new());
 
 pub fn get_progress_json() -> String {
     let active = IS_DOWNLOADING.load(Ordering::Relaxed);
