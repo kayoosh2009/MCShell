@@ -20,6 +20,7 @@ const SCRIPT_JS: &str = include_str!("web/script.js");
 const ASCII_ART: &str = include_str!("web/elements/mcshell-acii.txt");
 const BG_ICON: &[u8] = include_bytes!("web/elements/background.png");
 const DEF_BG: &[u8] = include_bytes!("web/elements/def-backgroud.png");
+const DELETE_ICON: &[u8] = include_bytes!("web/elements/delete.png");
 
 struct State {
     token: String,
@@ -174,6 +175,7 @@ fn handle(mut stream: TcpStream, state: &Arc<State>) -> Result<()> {
         ("GET", "/script.js") => return respond(&mut stream, 200, "text/javascript", SCRIPT_JS.as_bytes()),
         ("GET", "/elements/background.png") => return respond(&mut stream, 200, "image/png", BG_ICON),
         ("GET", "/elements/def-backgroud.png") => return respond(&mut stream, 200, "image/png", DEF_BG),
+        ("GET", "/elements/delete.png") => return respond(&mut stream, 200, "image/png", DELETE_ICON),
         _ => {}
     }
 

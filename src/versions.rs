@@ -230,31 +230,45 @@ fn download_assets(version_json: &Value, progress: &dyn Fn(String)) -> Result<()
 }
 
 pub fn install_version(id: &str, progress: &dyn Fn(String)) -> Result<()> {
-    let manifest = fetch_manifest()?;
-    let entry = manifest.iter().find(|v| v.id == id).ok_or_else(|| anyhow!("version {id} not found"))?;
-
-    let version_dir = paths::versions_dir().join(id);
-    let json_path = version_dir.join(format!("{id}.json"));
-    progress(format!("fetching {id}.json"));
-    download_to(&entry.url, &json_path)?;
-
-    let version_json: Value = serde_json::from_slice(&fs::read(&json_path)?)?;
-
-    if let Some(url) = version_json["downloads"]["client"]["url"].as_str() {
-        progress("downloading client jar".to_string());
-        download_to(url, &version_dir.join(format!("{id}.jar")))?;
+    IS_DOWNLOADING.store(true, Ordering::Relaxed);
+    DOWNLOADED_BYTES.store(0, Ordering::Relaxed);
+    TOTAL_BYTES.store(0, Ordering::Relaxed);
+    SPEED_BPS.store(0, Ordering::Relaxed);
+    if let Ok(mut task) = CURRENT_VERSION_TASK.lock() {
+        *task = id.to_string();
     }
 
-    if let Some(libs) = version_json.get("libraries") {
-        progress("downloading libraries".to_string());
-        download_libraries(libs, progress)?;
-    }
+    let result = (|| -> Result<()> {
+        let manifest = fetch_manifest()?;
+        let entry = manifest.iter().find(|v| v.id == id).ok_or_else(|| anyhow!("version {id} not found"))?;
 
-    progress("downloading assets".to_string());
-    download_assets(&version_json, progress)?;
+        let version_dir = paths::versions_dir().join(id);
+        let json_path = version_dir.join(format!("{id}.json"));
+        progress(format!("fetching {id}.json"));
+        download_to(&entry.url, &json_path)?;
 
-    progress(format!("{id}: install complete"));
-    Ok(())
+        let version_json: Value = serde_json::from_slice(&fs::read(&json_path)?)?;
+
+        if let Some(url) = version_json["downloads"]["client"]["url"].as_str() {
+            progress("downloading client jar".to_string());
+            download_to(url, &version_dir.join(format!("{id}.jar")))?;
+        }
+
+        if let Some(libs) = version_json.get("libraries") {
+            progress("downloading libraries".to_string());
+            download_libraries(libs, progress)?;
+        }
+
+        progress("downloading assets".to_string());
+        download_assets(&version_json, progress)?;
+
+        progress(format!("{id}: install complete"));
+        Ok(())
+    })();
+
+    IS_DOWNLOADING.store(false, Ordering::Relaxed);
+    SPEED_BPS.store(0, Ordering::Relaxed);
+    result
 }
 
 pub fn delete_version(id: &str) -> Result<()> {
