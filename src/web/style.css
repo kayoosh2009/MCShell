@@ -683,3 +683,11 @@ body {
     background: #3b82f6;
     transition: width 0.25s ease;
 }
+
+.download-meta {
+    display: flex;
+    justify-content: space-between;
+    font-size: 11px;
+    color: var(--text-dim);
+    margin-top: 2px;
+}
