@@ -323,26 +323,76 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // === Виджет фоновой загрузки (в стиле IDE) ===
+    // === Виджет фоновой загрузки (в стиле IDE) с реальными байтами и скоростью ===
     const downloadWidget = document.getElementById('download-widget');
     const downloadTitle = document.getElementById('download-title');
     const downloadPercent = document.getElementById('download-percent');
     const downloadBarFill = document.getElementById('download-bar-fill');
+    const downloadBytes = document.getElementById('download-bytes');
+    const downloadSpeed = document.getElementById('download-speed');
 
-    function updateDownloadProgress(title, percent) {
-        if (!downloadWidget) return;
-        downloadWidget.classList.remove('hidden');
-        if (downloadTitle) downloadTitle.textContent = title;
-        if (downloadPercent) downloadPercent.textContent = `${Math.round(percent)}%`;
-        if (downloadBarFill) downloadBarFill.style.width = `${percent}%`;
+    function formatBytes(bytes) {
+        if (!bytes || bytes <= 0) return '0 B';
+        const units = ['B', 'KB', 'MB', 'GB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(1024));
+        return `${(bytes / Math.pow(1024, i)).toFixed(i === 0 ? 0 : 1)} ${units[i] || 'MB'}`;
+    }
 
-        if (percent >= 100) {
-            if (downloadTitle) downloadTitle.textContent = 'Installed!';
-            setTimeout(() => {
-                downloadWidget.classList.add('hidden');
-                loadVersions();
-            }, 1800);
-        }
+    let isPollingProgress = false;
+
+    async function pollProgress() {
+        if (isPollingProgress) return;
+        isPollingProgress = true;
+
+        const check = async () => {
+            try {
+                const data = await api('/api/progress');
+                if (data && data.active) {
+                    if (downloadWidget) downloadWidget.classList.remove('hidden');
+
+                    const downloaded = data.downloaded || 0;
+                    const total = data.total || 0;
+                    const speed = data.speed || 0;
+                    const task = data.task || 'Minecraft';
+
+                    const percent = total > 0 ? Math.min(100, (downloaded / total) * 100) : 0;
+
+                    if (downloadTitle) downloadTitle.textContent = `Installing ${task}`;
+                    if (downloadPercent) downloadPercent.textContent = `${Math.round(percent)}%`;
+                    if (downloadBarFill) downloadBarFill.style.width = `${percent}%`;
+
+                    if (downloadBytes) {
+                        downloadBytes.textContent = total > 0 
+                            ? `${formatBytes(downloaded)} / ${formatBytes(total)}` 
+                            : formatBytes(downloaded);
+                    }
+                    if (downloadSpeed) {
+                        downloadSpeed.textContent = speed > 0 ? `${formatBytes(speed)}/s` : '0 B/s';
+                    }
+
+                    setTimeout(check, 300);
+                } else if (downloadWidget && !downloadWidget.classList.contains('hidden')) {
+                    // Загрузка завершена
+                    if (downloadTitle) downloadTitle.textContent = 'Installed!';
+                    if (downloadPercent) downloadPercent.textContent = '100%';
+                    if (downloadBarFill) downloadBarFill.style.width = '100%';
+                    if (downloadSpeed) downloadSpeed.textContent = 'Done';
+
+                    setTimeout(() => {
+                        downloadWidget.classList.add('hidden');
+                        isPollingProgress = false;
+                        loadVersions();
+                    }, 1800);
+                } else {
+                    isPollingProgress = false;
+                }
+            } catch (err) {
+                console.error('Error polling progress:', err);
+                isPollingProgress = false;
+            }
+        };
+
+        check();
     }
 
     // === Модалка установки версий с официального манифеста Mojang ===
