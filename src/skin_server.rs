@@ -95,8 +95,34 @@ fn handle_connection(mut stream: TcpStream, username: &str, uuid: &str, port: u1
     if path.starts_with("/skin.png") {
         let bytes = std::fs::read(paths::skin_file()).unwrap_or_default();
         write_response(&mut stream, "image/png", &bytes)?;
-    } else if path.contains("/session/minecraft/hasJoined") || path.contains("/profile/") {
-        let body = profile_json(username, uuid, port);
+    } else if path.contains("/session/minecraft/hasJoined") {
+        // Извлекаем никнейм входящего игрока из query параметров
+        let incoming_user = path
+            .split_once('?')
+            .and_then(|(_, query)| {
+                query.split('&').find_map(|pair| {
+                    let (k, v) = pair.split_once('=')?;
+                    if k == "username" { Some(v) } else { None }
+                })
+            })
+            .unwrap_or(username);
+
+        let body = if incoming_user == username {
+            profile_json(username, uuid, port)
+        } else {
+            // Подключается другой игрок: генерируем уникальный offline-UUID на основе его ника
+            let other_uuid = format!("{:032x}", incoming_user.bytes().fold(0u128, |acc, b| acc.wrapping_mul(31).wrapping_add(b as u128)));
+            format!(r#"{{"id":"{other_uuid}","name":"{incoming_user}","properties":[]}}"#)
+        };
+        write_response(&mut stream, "application/json", body.as_bytes())?;
+    } else if path.contains("/profile/") {
+        let req_uuid = path.split("/profile/").nth(1).unwrap_or("").split('?').next().unwrap_or("");
+        let plain_uuid = crate::profile::strip_dashes(uuid);
+        let body = if req_uuid.is_empty() || req_uuid == plain_uuid {
+            profile_json(username, uuid, port)
+        } else {
+            format!(r#"{{"id":"{req_uuid}","name":"Player","properties":[]}}"#)
+        };
         write_response(&mut stream, "application/json", body.as_bytes())?;
     } else {
         let pubkey = public_key_pem_escaped().unwrap_or_default();
