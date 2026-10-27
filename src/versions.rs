@@ -1,11 +1,37 @@
 use std::fs;
-use std::io::Read;
+use std::io::{Read, Write};
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::Mutex;
+use std::time::Instant;
 
 use anyhow::{anyhow, Result};
+use lazy_static::lazy_static;
 use serde_json::Value;
 
 use crate::paths;
+
+// Глобальное состояние прогресса для веб-интерфейса
+pub static IS_DOWNLOADING: AtomicBool = AtomicBool::new(false);
+pub static DOWNLOADED_BYTES: AtomicU64 = AtomicU64::new(0);
+pub static TOTAL_BYTES: AtomicU64 = AtomicU64::new(0);
+pub static SPEED_BPS: AtomicU64 = AtomicU64::new(0);
+
+lazy_static! {
+    pub static ref CURRENT_VERSION_TASK: Mutex<String> = Mutex::new(String::new());
+}
+
+pub fn get_progress_json() -> String {
+    let active = IS_DOWNLOADING.load(Ordering::Relaxed);
+    let downloaded = DOWNLOADED_BYTES.load(Ordering::Relaxed);
+    let total = TOTAL_BYTES.load(Ordering::Relaxed);
+    let speed = SPEED_BPS.load(Ordering::Relaxed);
+    let task = CURRENT_VERSION_TASK.lock().unwrap().clone();
+
+    format!(
+        r#"{{"active":{active},"downloaded":{downloaded},"total":{total},"speed":{speed},"task":"{task}"}}"#
+    )
+}
 
 pub struct VersionEntry {
     pub id: String,
@@ -49,9 +75,39 @@ pub(crate) fn download_to(url: &str, dest: &PathBuf) -> Result<()> {
     if let Some(parent) = dest.parent() {
         fs::create_dir_all(parent)?;
     }
-    let mut bytes = Vec::new();
-    ureq::get(url).call()?.into_reader().read_to_end(&mut bytes)?;
-    fs::write(dest, bytes)?;
+
+    let resp = ureq::get(url).call()?;
+    if let Some(len_str) = resp.header("Content-Length") {
+        if let Ok(len) = len_str.parse::<u64>() {
+            TOTAL_BYTES.fetch_add(len, Ordering::Relaxed);
+        }
+    }
+
+    let mut reader = resp.into_reader();
+    let mut file = fs::File::create(dest)?;
+    let mut buf = [0u8; 16384];
+
+    let mut last_instant = Instant::now();
+    let mut bytes_since_last = 0u64;
+
+    loop {
+        let n = reader.read(&mut buf)?;
+        if n == 0 {
+            break;
+        }
+        file.write_all(&buf[..n])?;
+        DOWNLOADED_BYTES.fetch_add(n as u64, Ordering::Relaxed);
+        bytes_since_last += n as u64;
+
+        let elapsed = last_instant.elapsed();
+        if elapsed.as_millis() >= 250 {
+            let speed = (bytes_since_last as f64 / elapsed.as_secs_f64()) as u64;
+            SPEED_BPS.store(speed, Ordering::Relaxed);
+            last_instant = Instant::now();
+            bytes_since_last = 0;
+        }
+    }
+
     Ok(())
 }
 
