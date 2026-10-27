@@ -136,6 +136,7 @@ document.addEventListener('DOMContentLoaded', () => {
     loadProfile();
     loadArt();
     loadBackground();
+    pollProgress();
 
     // 3. Выбор скина, превью в 3D и сохранение в папку игры
     const skinInput = document.getElementById('skin-file-input');
@@ -452,25 +453,21 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // Запуск процесса загрузки с плашкой в боковом меню
+    // Запуск реального процесса загрузки через Rust бэкенд
     async function startVersionDownload(versionId) {
-        updateDownloadProgress(`Installing ${versionId}`, 5);
+        if (downloadWidget) downloadWidget.classList.remove('hidden');
+        if (downloadTitle) downloadTitle.textContent = `Starting ${versionId}...`;
+        if (downloadPercent) downloadPercent.textContent = '0%';
+        if (downloadBarFill) downloadBarFill.style.width = '0%';
+        if (downloadBytes) downloadBytes.textContent = 'Connecting...';
+        if (downloadSpeed) downloadSpeed.textContent = '';
 
         try {
             await api(`/api/install?version=${encodeURIComponent(versionId)}`, { method: 'POST' });
-
-            let current = 10;
-            const interval = setInterval(() => {
-                current += Math.random() * 18;
-                if (current >= 100) {
-                    current = 100;
-                    clearInterval(interval);
-                }
-                updateDownloadProgress(`Installing ${versionId}`, current);
-            }, 300);
+            pollProgress();
         } catch (err) {
             console.error('Install failed:', err);
-            updateDownloadProgress('Install Error', 100);
+            if (downloadTitle) downloadTitle.textContent = 'Install Error';
         }
     }
 
