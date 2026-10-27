@@ -185,7 +185,78 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // 4. Загрузка установленных версий
+    // === 4. Управление версиями (Избранное, Удаление, Фоновая загрузка) ===
+
+    // Работа с избранными версиями (сохраняем в localStorage)
+    function getFavorites() {
+        try {
+            return JSON.parse(localStorage.getItem('mcshell_fav_versions') || '[]');
+        } catch (_) {
+            return [];
+        }
+    }
+
+    function toggleFavorite(id) {
+        let favs = getFavorites();
+        if (favs.includes(id)) {
+            favs = favs.filter(v => v !== id);
+        } else {
+            favs.push(id);
+        }
+        localStorage.setItem('mcshell_fav_versions', JSON.stringify(favs));
+        loadVersions();
+    }
+
+    // Модальное окно подтверждения удаления
+    const confirmModal = document.getElementById('confirm-modal');
+    const confirmDeleteText = document.getElementById('confirm-delete-text');
+    const confirmDeleteBtn = document.getElementById('confirm-delete-btn');
+    const cancelDeleteBtn = document.getElementById('cancel-delete-btn');
+    let versionPendingDelete = null;
+
+    if (cancelDeleteBtn && confirmModal) {
+        cancelDeleteBtn.addEventListener('click', () => {
+            confirmModal.classList.add('hidden');
+            versionPendingDelete = null;
+        });
+        confirmModal.addEventListener('click', (e) => {
+            if (e.target === confirmModal) {
+                confirmModal.classList.add('hidden');
+                versionPendingDelete = null;
+            }
+        });
+    }
+
+    if (confirmDeleteBtn) {
+        confirmDeleteBtn.addEventListener('click', async () => {
+            if (!versionPendingDelete) return;
+            const idToDelete = versionPendingDelete;
+            confirmDeleteBtn.textContent = 'Deleting...';
+            try {
+                await api(`/api/versions/delete?id=${encodeURIComponent(idToDelete)}`, {
+                    method: 'POST'
+                });
+            } catch (err) {
+                console.error('Failed to delete version:', err);
+            }
+            confirmModal.classList.add('hidden');
+            confirmDeleteBtn.textContent = 'Delete';
+            versionPendingDelete = null;
+            loadVersions();
+        });
+    }
+
+    function promptDeleteVersion(id) {
+        versionPendingDelete = id;
+        if (confirmDeleteText) {
+            confirmDeleteText.textContent = `Are you sure you want to delete version "${id}"?`;
+        }
+        if (confirmModal) {
+            confirmModal.classList.remove('hidden');
+        }
+    }
+
+    // Загрузка и рендер установленных версий (с подъёмом избранных наверх)
     async function loadVersions() {
         const listEl = document.getElementById('installed-versions-list');
         if (!listEl) return;
@@ -197,9 +268,22 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             }
 
+            const favorites = getFavorites();
+
+            // Сортируем: избранные версии всегда идут первыми
+            targets.sort((a, b) => {
+                const aFav = favorites.includes(a.id);
+                const bFav = favorites.includes(b.id);
+                if (aFav && !bFav) return -1;
+                if (!aFav && bFav) return 1;
+                return a.id.localeCompare(b.id);
+            });
+
             listEl.innerHTML = '';
             targets.forEach(item => {
                 const isFabric = item.loader === 'fabric';
+                const isFav = favorites.includes(item.id);
+
                 const card = document.createElement('div');
                 card.className = 'version-card';
                 card.innerHTML = `
@@ -207,12 +291,136 @@ document.addEventListener('DOMContentLoaded', () => {
                         <span class="version-name">${item.id}</span>
                         <span class="version-badge ${isFabric ? 'fabric' : ''}">${isFabric ? 'Fabric' : 'Vanilla'}</span>
                     </div>
+                    <div class="version-actions">
+                        <button class="icon-action-btn star-btn ${isFav ? 'active' : ''}" title="${isFav ? 'Remove from favorites' : 'Add to favorites'}">
+                            ${isFav ? '★' : '☆'}
+                        </button>
+                        <button class="icon-action-btn delete-btn" title="Delete version">
+                            <img src="/elements/delete.png" alt="Delete">
+                        </button>
+                    </div>
                 `;
+
+                // Обработчик звезды
+                const starBtn = card.querySelector('.star-btn');
+                starBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    toggleFavorite(item.id);
+                });
+
+                // Обработчик удаления
+                const deleteBtn = card.querySelector('.delete-btn');
+                deleteBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    promptDeleteVersion(item.id);
+                });
+
                 listEl.appendChild(card);
             });
         } catch (err) {
             console.error('Failed to load versions:', err);
             listEl.innerHTML = '<span class="empty-text">Error loading versions</span>';
+        }
+    }
+
+    // === Виджет фоновой загрузки (в стиле IDE) ===
+    const downloadWidget = document.getElementById('download-widget');
+    const downloadTitle = document.getElementById('download-title');
+    const downloadPercent = document.getElementById('download-percent');
+    const downloadBarFill = document.getElementById('download-bar-fill');
+
+    function updateDownloadProgress(title, percent) {
+        if (!downloadWidget) return;
+        downloadWidget.classList.remove('hidden');
+        if (downloadTitle) downloadTitle.textContent = title;
+        if (downloadPercent) downloadPercent.textContent = `${Math.round(percent)}%`;
+        if (downloadBarFill) downloadBarFill.style.width = `${percent}%`;
+
+        if (percent >= 100) {
+            if (downloadTitle) downloadTitle.textContent = 'Installed!';
+            setTimeout(() => {
+                downloadWidget.classList.add('hidden');
+                loadVersions();
+            }, 1800);
+        }
+    }
+
+    // === Модалка установки версий с официального манифеста Mojang ===
+    const installModal = document.getElementById('install-modal');
+    const openInstallModalBtn = document.getElementById('open-install-modal-btn');
+    const closeInstallModalBtn = document.getElementById('close-install-modal-btn');
+    const availableList = document.getElementById('available-versions-list');
+
+    if (openInstallModalBtn && installModal) {
+        openInstallModalBtn.addEventListener('click', () => {
+            installModal.classList.remove('hidden');
+            loadAvailableVersions();
+        });
+    }
+
+    if (closeInstallModalBtn && installModal) {
+        closeInstallModalBtn.addEventListener('click', () => installModal.classList.add('hidden'));
+        installModal.addEventListener('click', (e) => {
+            if (e.target === installModal) installModal.classList.add('hidden');
+        });
+    }
+
+    async function loadAvailableVersions() {
+        if (!availableList) return;
+        availableList.innerHTML = '<span class="empty-text">Loading release versions...</span>';
+
+        try {
+            // Подтягиваем официальный манифест версий
+            const res = await fetch('https://piston-meta.mojang.com/mc/game/version_manifest_v2.json');
+            const data = await res.json();
+            
+            // Фильтруем только стабильные релизы
+            const releases = (data.versions || []).filter(v => v.type === 'release');
+
+            availableList.innerHTML = '';
+            releases.slice(0, 40).forEach(ver => {
+                const row = document.createElement('div');
+                row.className = 'install-version-row';
+                row.innerHTML = `
+                    <div class="version-info">
+                        <span class="version-name">${ver.id}</span>
+                        <span class="version-badge">Release</span>
+                    </div>
+                    <button class="btn btn-primary start-install-btn" data-ver="${ver.id}">Install</button>
+                `;
+
+                row.querySelector('.start-install-btn').addEventListener('click', () => {
+                    installModal.classList.add('hidden');
+                    startVersionDownload(ver.id);
+                });
+
+                availableList.appendChild(row);
+            });
+        } catch (err) {
+            console.error('Failed to load version manifest:', err);
+            availableList.innerHTML = '<span class="empty-text">Failed to fetch versions list.</span>';
+        }
+    }
+
+    // Запуск процесса загрузки с плашкой в боковом меню
+    async function startVersionDownload(versionId) {
+        updateDownloadProgress(`Installing ${versionId}`, 5);
+
+        try {
+            await api(`/api/install?version=${encodeURIComponent(versionId)}`, { method: 'POST' });
+
+            let current = 10;
+            const interval = setInterval(() => {
+                current += Math.random() * 18;
+                if (current >= 100) {
+                    current = 100;
+                    clearInterval(interval);
+                }
+                updateDownloadProgress(`Installing ${versionId}`, current);
+            }, 300);
+        } catch (err) {
+            console.error('Install failed:', err);
+            updateDownloadProgress('Install Error', 100);
         }
     }
 
