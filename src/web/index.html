@@ -108,6 +108,17 @@
                 <button class="nav-btn" data-page="settings">Settings</button>
                 <button class="nav-btn" data-page="mods">Mods & Packs</button>
             </nav>
+            <!-- Виджет фоновой загрузки как в IDE -->
+            <div id="download-widget" class="download-widget hidden">
+                <div class="download-info">
+                    <span id="download-title">Downloading...</span>
+                    <span id="download-percent">0%</span>
+                </div>
+                <div class="download-bar-bg">
+                    <div id="download-bar-fill" class="download-bar-fill" style="width: 0%"></div>
+                </div>
+            </div>
+
             <div class="nav-footer">
                 <span id="connection-status">● Connected (127.0.0.1)</span>
             </div>
@@ -138,6 +149,34 @@
                     <span>Upload New</span>
                     <input type="file" id="bg-file-input" accept="image/*" hidden>
                 </label>
+            </div>
+        </div>
+    </div>
+
+    <!-- Модальное окно подтверждения удаления версии -->
+    <div id="confirm-modal" class="modal-overlay hidden">
+        <div class="modal-card confirm-card">
+            <div class="confirm-icon-box">
+                <img src="/elements/delete.png" alt="Delete" class="delete-dialog-icon">
+            </div>
+            <h3>Delete Version</h3>
+            <p id="confirm-delete-text">Are you sure you want to delete this version?</p>
+            <div class="modal-actions">
+                <button id="cancel-delete-btn" class="btn btn-secondary">Cancel</button>
+                <button id="confirm-delete-btn" class="btn btn-danger">Delete</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Модальное окно выбора версии для установки -->
+    <div id="install-modal" class="modal-overlay hidden">
+        <div class="modal-card install-card">
+            <div class="modal-header">
+                <h3>Install Minecraft Version</h3>
+                <button id="close-install-modal-btn" class="modal-close-btn">&times;</button>
+            </div>
+            <div class="install-versions-list" id="available-versions-list">
+                <span class="empty-text">Loading available versions...</span>
             </div>
         </div>
     </div>
