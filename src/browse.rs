@@ -327,7 +327,34 @@ fn handle(mut stream: TcpStream, state: &Arc<State>) -> Result<()> {
                 Err(e) => json_response(&mut stream, 400, &json!({ "ok": false, "error": e.to_string() })),
             }
         }
+        ("GET", "/api/progress") => {
+            let body = versions::get_progress_json();
+            respond(&mut stream, 200, "application/json", body.as_bytes())
+        }
+        ("POST", "/api/versions/delete") => {
+            let id = q.get("id").cloned().unwrap_or_default();
+            if !id.is_empty() {
+                let _ = versions::delete_version(&id);
+                let _ = state.tx.lock().unwrap().send(format!("deleted version: {id}"));
+                json_response(&mut stream, 200, &json!({ "ok": true }))
+            } else {
+                json_response(&mut stream, 400, &json!({ "ok": false, "error": "missing version id" }))
+            }
+        }
         ("POST", "/api/install") => {
+            // Если передан параметр `version` — скачиваем версию Minecraft в фоновом потоке
+            if let Some(ver) = q.get("version").cloned() {
+                let tx = state.tx.lock().unwrap().clone();
+                std::thread::spawn(move || {
+                    let res = versions::install_version(&ver, &|_| {});
+                    if res.is_ok() {
+                        let _ = tx.send(format!("installed version {ver}"));
+                    }
+                });
+                return json_response(&mut stream, 200, &json!({ "ok": true, "started": true }));
+            }
+
+            // Иначе — скачивание мода / ресурс-пака с Modrinth
             let id = q.get("id").cloned().unwrap_or_default();
             let ctx = Context {
                 mc_version: q.get("mc").and_then(|m| safe(m)),
