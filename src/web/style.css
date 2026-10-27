@@ -504,3 +504,182 @@ body {
     white-space: pre;
     z-index: 10;
 }
+
+/* Кнопки действий версий (звёздочка и корзина) */
+.version-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.icon-action-btn {
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 6px;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    color: var(--text-dim);
+    padding: 0;
+}
+
+.icon-action-btn:hover {
+    background: var(--bg-element-hover);
+    border-color: var(--border-color);
+}
+
+.star-btn {
+    font-size: 18px;
+    line-height: 1;
+}
+
+.star-btn.active {
+    color: #f59e0b;
+}
+
+.delete-btn img {
+    width: 16px;
+    height: 16px;
+    object-fit: contain;
+    opacity: 0.65;
+    transition: opacity 0.15s ease;
+}
+
+.delete-btn:hover img {
+    opacity: 1;
+}
+
+.btn-danger {
+    background: #ef4444;
+    color: #ffffff;
+}
+
+.btn-danger:hover {
+    background: #dc2626;
+}
+
+/* Модальное окно подтверждения удаления */
+.confirm-card {
+    width: 400px;
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 32px 24px;
+}
+
+.confirm-icon-box {
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    background: rgba(239, 68, 68, 0.12);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 16px;
+}
+
+.delete-dialog-icon {
+    width: 28px;
+    height: 28px;
+    object-fit: contain;
+}
+
+.confirm-card h3 {
+    font-size: 19px;
+    margin-bottom: 8px;
+    color: var(--text-white);
+}
+
+.confirm-card p {
+    font-size: 14px;
+    color: var(--text-muted);
+    margin-bottom: 24px;
+}
+
+.modal-actions {
+    display: flex;
+    gap: 12px;
+    width: 100%;
+    justify-content: center;
+}
+
+.modal-actions .btn {
+    flex: 1;
+}
+
+/* Модальное окно установки версий */
+.install-card {
+    width: 560px;
+    max-height: 80vh;
+    display: flex;
+    flex-direction: column;
+}
+
+.install-versions-list {
+    margin-top: 14px;
+    overflow-y: auto;
+    max-height: 480px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding-right: 4px;
+}
+
+.install-version-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 16px;
+    background: var(--bg-element);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    transition: all 0.15s ease;
+}
+
+.install-version-row:hover {
+    background: var(--bg-element-hover);
+    border-color: #52525b;
+}
+
+/* Виджет фоновой загрузки в боковом меню (стиль IDE) */
+.download-widget {
+    margin-bottom: 16px;
+    background: var(--bg-element);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    padding: 10px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.download-widget.hidden {
+    display: none !important;
+}
+
+.download-info {
+    display: flex;
+    justify-content: space-between;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text-muted);
+}
+
+.download-bar-bg {
+    width: 100%;
+    height: 4px;
+    background: #27272a;
+    border-radius: 2px;
+    overflow: hidden;
+}
+
+.download-bar-fill {
+    height: 100%;
+    background: #3b82f6;
+    transition: width 0.25s ease;
+}
