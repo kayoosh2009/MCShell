@@ -137,6 +137,7 @@ document.addEventListener('DOMContentLoaded', () => {
     loadArt();
     loadBackground();
     pollProgress();
+    startAutoCloseWatchdog();
 
     // 3. Выбор скина, превью в 3D и сохранение в папку игры
     const skinInput = document.getElementById('skin-file-input');
@@ -188,24 +189,44 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // === 4. Управление версиями (Избранное, Удаление, Фоновая загрузка) ===
 
-    // Работа с избранными версиями (сохраняем в localStorage)
-    function getFavorites() {
+    // Работа с избранными версиями через бэкенд Rust (сохраняются в favorites.json)
+    async function toggleFavorite(id) {
         try {
-            return JSON.parse(localStorage.getItem('mcshell_fav_versions') || '[]');
-        } catch (_) {
-            return [];
+            await api(`/api/favorites/toggle?id=${encodeURIComponent(id)}`, { method: 'POST' });
+            loadVersions();
+        } catch (err) {
+            console.error('Failed to toggle favorite:', err);
         }
     }
 
-    function toggleFavorite(id) {
-        let favs = getFavorites();
-        if (favs.includes(id)) {
-            favs = favs.filter(v => v !== id);
-        } else {
-            favs.push(id);
-        }
-        localStorage.setItem('mcshell_fav_versions', JSON.stringify(favs));
-        loadVersions();
+    // Авто-закрытие вкладки при закрытии лаунчера или запуске игры
+    function startAutoCloseWatchdog() {
+        let disconnectedCount = 0;
+        setInterval(async () => {
+            try {
+                const status = await api('/api/status');
+                if (status && status.should_close) {
+                    closeTabGracefully();
+                }
+                disconnectedCount = 0;
+            } catch (_) {
+                disconnectedCount++;
+                // Если лаунчер закрыли (процесс завершён, 2 неудачных запроса подряд)
+                if (disconnectedCount >= 2) {
+                    closeTabGracefully();
+                }
+            }
+        }, 1000);
+    }
+
+    function closeTabGracefully() {
+        window.close();
+        document.body.innerHTML = `
+            <div style="display:flex;height:100vh;flex-direction:column;align-items:center;justify-content:center;background:#121214;color:#a1a1aa;font-family:sans-serif;">
+                <h2 style="color:#ffffff;margin-bottom:8px;font-size:24px;">MCShell</h2>
+                <p>Game launched or launcher closed. You can close this tab.</p>
+            </div>
+        `;
     }
 
     // Модальное окно подтверждения удаления
@@ -269,21 +290,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             }
 
-            const favorites = getFavorites();
-
-            // Сортируем: избранные версии всегда идут первыми
-            targets.sort((a, b) => {
-                const aFav = favorites.includes(a.id);
-                const bFav = favorites.includes(b.id);
-                if (aFav && !bFav) return -1;
-                if (!aFav && bFav) return 1;
-                return a.id.localeCompare(b.id);
-            });
-
             listEl.innerHTML = '';
             targets.forEach(item => {
                 const isFabric = item.loader === 'fabric';
-                const isFav = favorites.includes(item.id);
+                const isFav = !!item.favorite;
 
                 const card = document.createElement('div');
                 card.className = 'version-card';
