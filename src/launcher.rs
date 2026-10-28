@@ -227,6 +227,7 @@ pub fn launch(id: &str, username: &str, uuid: &str, show_logs_separate: bool, wi
     }
 
     crate::discord::set(&format!("Playing {id}"), "Minecraft");
+    crate::browse::SHOULD_CLOSE.store(true, std::sync::atomic::Ordering::Relaxed);
 
     let started = std::time::SystemTime::now();
     let id_owned = id.to_string();
