@@ -49,6 +49,34 @@ pub fn fetch_manifest() -> Result<Vec<VersionEntry>> {
         .collect())
 }
 
+pub fn load_favorites() -> Vec<String> {
+    let path = paths::data_dir().join("favorites.json");
+    if let Ok(bytes) = fs::read(path) {
+        serde_json::from_slice(&bytes).unwrap_or_default()
+    } else {
+        Vec::new()
+    }
+}
+
+pub fn save_favorites(favs: &[String]) {
+    let _ = fs::create_dir_all(paths::data_dir());
+    let path = paths::data_dir().join("favorites.json");
+    if let Ok(bytes) = serde_json::to_vec(favs) {
+        let _ = fs::write(path, bytes);
+    }
+}
+
+pub fn toggle_favorite(id: &str) -> Vec<String> {
+    let mut favs = load_favorites();
+    if favs.iter().any(|x| x == id) {
+        favs.retain(|x| x != id);
+    } else {
+        favs.push(id.to_string());
+    }
+    save_favorites(&favs);
+    favs
+}
+
 pub fn installed_versions() -> Vec<String> {
     let mut out = Vec::new();
     if let Ok(entries) = fs::read_dir(paths::versions_dir()) {
@@ -61,6 +89,15 @@ pub fn installed_versions() -> Vec<String> {
         }
     }
     out.sort();
+
+    // Сортируем: избранные версии поднимаются наверх (и в TUI, и в Web)
+    let favs = load_favorites();
+    out.sort_by(|a, b| {
+        let a_fav = favs.contains(a);
+        let b_fav = favs.contains(b);
+        b_fav.cmp(&a_fav).then_with(|| a.cmp(b))
+    });
+
     out
 }
 

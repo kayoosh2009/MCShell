@@ -2,8 +2,11 @@ use std::collections::HashMap;
 use std::fs::File;
 use std::io::{Read, Write};
 use std::net::{TcpListener, TcpStream};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{self, Receiver, Sender};
 use std::sync::{Arc, Mutex};
+
+pub static SHOULD_CLOSE: AtomicBool = AtomicBool::new(false);
 
 use anyhow::{anyhow, bail, Result};
 use serde_json::{json, Value};
@@ -280,6 +283,19 @@ fn handle(mut stream: TcpStream, state: &Arc<State>) -> Result<()> {
             let ctx = detect_context();
             json_response(&mut stream, 200, &json!({ "version": ctx.mc_version, "loader": ctx.loader }))
         }
+        ("GET", "/api/status") => {
+            json_response(&mut stream, 200, &json!({ "should_close": SHOULD_CLOSE.load(Ordering::Relaxed) }))
+        }
+        ("POST", "/api/favorites/toggle") => {
+            let id = q.get("id").cloned().unwrap_or_default();
+            if !id.is_empty() {
+                let updated = versions::toggle_favorite(&id);
+                let _ = state.tx.lock().unwrap().send(format!("toggled favorite: {id}"));
+                json_response(&mut stream, 200, &json!({ "ok": true, "favorites": updated }))
+            } else {
+                json_response(&mut stream, 400, &json!({ "ok": false, "error": "missing id" }))
+            }
+        }
         ("GET", "/api/targets") => json_response(&mut stream, 200, &json!(list_targets())),
         ("GET", "/api/installed") => {
             json_response(&mut stream, 200, &json!(installed_ids(kind_of(&q))))
@@ -408,15 +424,17 @@ fn search(q: &HashMap<String, String>) -> Result<Value> {
 }
 
 fn list_targets() -> Vec<Value> {
+    let favs = versions::load_favorites();
     versions::installed_versions()
         .into_iter()
         .map(|id| {
+            let is_fav = favs.contains(&id);
             if let Some(rest) = id.strip_prefix("fabric-loader-") {
                 if let Some((_, mc)) = rest.split_once('-') {
-                    return json!({ "id": id, "mc": mc, "loader": "fabric", "label": format!("{mc} (fabric)") });
+                    return json!({ "id": id, "mc": mc, "loader": "fabric", "label": format!("{mc} (fabric)"), "favorite": is_fav });
                 }
             }
-            json!({ "id": id, "mc": id, "loader": Value::Null, "label": format!("{id} (vanilla)") })
+            json!({ "id": id, "mc": id, "loader": Value::Null, "label": format!("{id} (vanilla)"), "favorite": is_fav })
         })
         .collect()
 }
