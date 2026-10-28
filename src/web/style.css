@@ -620,6 +620,26 @@ body {
     flex-direction: column;
 }
 
+.install-search-box {
+    margin-bottom: 12px;
+}
+
+.install-search-box input {
+    width: 100%;
+    background: var(--bg-element);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    padding: 10px 14px;
+    color: var(--text-white);
+    font-size: 14px;
+    outline: none;
+    transition: border-color 0.15s ease;
+}
+
+.install-search-box input:focus {
+    border-color: #52525b;
+}
+
 .install-versions-list {
     margin-top: 14px;
     overflow-y: auto;
