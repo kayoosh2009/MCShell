@@ -401,10 +401,53 @@ document.addEventListener('DOMContentLoaded', () => {
     const openInstallModalBtn = document.getElementById('open-install-modal-btn');
     const closeInstallModalBtn = document.getElementById('close-install-modal-btn');
     const availableList = document.getElementById('available-versions-list');
+    const versionSearchInput = document.getElementById('version-search-input');
+    let allReleaseVersions = [];
+
+    function renderAvailableVersions(versionsToRender) {
+        if (!availableList) return;
+        availableList.innerHTML = '';
+
+        if (versionsToRender.length === 0) {
+            availableList.innerHTML = '<span class="empty-text">No matching versions found</span>';
+            return;
+        }
+
+        versionsToRender.forEach(ver => {
+            const row = document.createElement('div');
+            row.className = 'install-version-row';
+            row.innerHTML = `
+                <div class="version-info">
+                    <span class="version-name">${ver.id}</span>
+                    <span class="version-badge">Release</span>
+                </div>
+                <button class="btn btn-primary start-install-btn" data-ver="${ver.id}">Install</button>
+            `;
+
+            row.querySelector('.start-install-btn').addEventListener('click', () => {
+                installModal.classList.add('hidden');
+                startVersionDownload(ver.id);
+            });
+
+            availableList.appendChild(row);
+        });
+    }
+
+    if (versionSearchInput) {
+        versionSearchInput.addEventListener('input', (e) => {
+            const query = e.target.value.trim().toLowerCase();
+            const filtered = allReleaseVersions.filter(v => v.id.toLowerCase().includes(query));
+            renderAvailableVersions(filtered);
+        });
+    }
 
     if (openInstallModalBtn && installModal) {
         openInstallModalBtn.addEventListener('click', () => {
             installModal.classList.remove('hidden');
+            if (versionSearchInput) {
+                versionSearchInput.value = '';
+                setTimeout(() => versionSearchInput.focus(), 50);
+            }
             loadAvailableVersions();
         });
     }
@@ -418,35 +461,20 @@ document.addEventListener('DOMContentLoaded', () => {
 
     async function loadAvailableVersions() {
         if (!availableList) return;
-        availableList.innerHTML = '<span class="empty-text">Loading release versions...</span>';
+        if (allReleaseVersions.length > 0) {
+            renderAvailableVersions(allReleaseVersions);
+            return;
+        }
+
+        availableList.innerHTML = '<span class="empty-text">Loading all release versions...</span>';
 
         try {
-            // Подтягиваем официальный манифест версий
             const res = await fetch('https://piston-meta.mojang.com/mc/game/version_manifest_v2.json');
             const data = await res.json();
             
-            // Фильтруем только стабильные релизы
-            const releases = (data.versions || []).filter(v => v.type === 'release');
-
-            availableList.innerHTML = '';
-            releases.slice(0, 40).forEach(ver => {
-                const row = document.createElement('div');
-                row.className = 'install-version-row';
-                row.innerHTML = `
-                    <div class="version-info">
-                        <span class="version-name">${ver.id}</span>
-                        <span class="version-badge">Release</span>
-                    </div>
-                    <button class="btn btn-primary start-install-btn" data-ver="${ver.id}">Install</button>
-                `;
-
-                row.querySelector('.start-install-btn').addEventListener('click', () => {
-                    installModal.classList.add('hidden');
-                    startVersionDownload(ver.id);
-                });
-
-                availableList.appendChild(row);
-            });
+            // Фильтруем абсолютно все релизы (без ограничений по количеству)
+            allReleaseVersions = (data.versions || []).filter(v => v.type === 'release');
+            renderAvailableVersions(allReleaseVersions);
         } catch (err) {
             console.error('Failed to load version manifest:', err);
             availableList.innerHTML = '<span class="empty-text">Failed to fetch versions list.</span>';
