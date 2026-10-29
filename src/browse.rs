@@ -366,7 +366,7 @@ fn handle(mut stream: TcpStream, state: &Arc<State>) -> Result<()> {
                     let res = if loader == "fabric" || loader == "quilt" {
                         fabric::install_loader(&loader, &ver, &|_| {})
                     } else {
-                        versions::install_version(&ver, &|_| {})
+                        versions::install_version(&ver, &|_| {}).map(|_| ver.clone())
                     };
 
                     if let Ok(installed_id) = res {
