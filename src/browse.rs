@@ -13,7 +13,7 @@ use serde_json::{json, Value};
 
 use crate::profile::Profile;
 use crate::stats::{fmt_ago, fmt_bytes, fmt_duration};
-use crate::{paths, settings, skin, stats, versions};
+use crate::{fabric, paths, settings, skin, stats, versions};
 
 const API: &str = "https://api.modrinth.com/v2";
 const USER_AGENT: &str = "MCShell/0.1.0 (github.com/kayoosh2009/MCShell)";
@@ -358,13 +358,19 @@ fn handle(mut stream: TcpStream, state: &Arc<State>) -> Result<()> {
             }
         }
         ("POST", "/api/install") => {
-            // Если передан параметр `version` — скачиваем версию Minecraft в фоновом потоке
+            // Если передан параметр `version` — скачиваем версию Minecraft или мод-лоадер в фоновом потоке
             if let Some(ver) = q.get("version").cloned() {
+                let loader = q.get("loader").cloned().unwrap_or_else(|| "vanilla".to_string());
                 let tx = state.tx.lock().unwrap().clone();
                 std::thread::spawn(move || {
-                    let res = versions::install_version(&ver, &|_| {});
-                    if res.is_ok() {
-                        let _ = tx.send(format!("installed version {ver}"));
+                    let res = if loader == "fabric" || loader == "quilt" {
+                        fabric::install_loader(&loader, &ver, &|_| {})
+                    } else {
+                        versions::install_version(&ver, &|_| {})
+                    };
+
+                    if let Ok(installed_id) = res {
+                        let _ = tx.send(format!("installed {installed_id}"));
                     }
                 });
                 return json_response(&mut stream, 200, &json!({ "ok": true, "started": true }));
