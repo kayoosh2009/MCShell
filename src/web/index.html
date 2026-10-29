@@ -89,6 +89,36 @@
                 </div>
             </div>
 
+            <!-- Вкладка 3: Каталог модов и текстур (Explore) -->
+            <div id="tab-explore" class="tab-content hidden">
+                <div class="explore-section">
+                    <div class="section-header">
+                        <h2>Explore</h2>
+                        <div class="explore-controls">
+                            <!-- Выбор типа контента -->
+                            <div class="explore-type-selector">
+                                <button class="explore-type-btn active" data-type="mod">Mods</button>
+                                <button class="explore-type-btn" data-type="resourcepack">Resource Packs</button>
+                            </div>
+                            <!-- Выбор целевой версии из установленных -->
+                            <select id="explore-target-select" class="explore-select" title="Target Version">
+                                <option value="">Detecting version...</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Поиск по каталогу -->
+                    <div class="explore-search-bar">
+                        <input type="text" id="explore-search-input" placeholder="Search mods or resource packs on Modrinth..." autocomplete="off">
+                    </div>
+
+                    <!-- Сетка карточек -->
+                    <div id="explore-grid" class="explore-grid">
+                        <span class="empty-text">Loading catalog...</span>
+                    </div>
+                </div>
+            </div>
+
             <!-- ASCII Art в левом нижнем углу -->
             <pre id="ascii-art" class="ascii-art-box"></pre>
 
@@ -105,8 +135,8 @@
             <nav class="nav-buttons">
                 <button class="nav-btn active" data-page="profile">Profile</button>
                 <button class="nav-btn" data-page="versions">Versions</button>
+                <button class="nav-btn" data-page="explore">Explore</button>
                 <button class="nav-btn" data-page="settings">Settings</button>
-                <button class="nav-btn" data-page="mods">Mods & Packs</button>
             </nav>
             <!-- Виджет фоновой загрузки как в IDE -->
             <div id="download-widget" class="download-widget hidden">
