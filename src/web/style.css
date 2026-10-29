@@ -620,6 +620,40 @@ body {
     flex-direction: column;
 }
 
+.loader-selector {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 14px;
+    background: var(--bg-element);
+    padding: 4px;
+    border-radius: 8px;
+    border: 1px solid var(--border-color);
+}
+
+.loader-tab-btn {
+    flex: 1;
+    padding: 8px 12px;
+    background: transparent;
+    border: none;
+    border-radius: 6px;
+    color: var(--text-muted);
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.loader-tab-btn:hover {
+    color: var(--text-white);
+}
+
+.loader-tab-btn.active {
+    background: #2b2b30;
+    color: var(--text-white);
+    font-weight: 600;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
 .install-search-box {
     margin-bottom: 12px;
 }
