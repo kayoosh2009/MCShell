@@ -42,3 +42,23 @@ pub fn install_fabric(mc_version: &str, loader_version: &str, progress: &dyn Fn(
     progress(format!("fabric {loader_version} for {mc_version}: install complete"));
     Ok(id)
 }
+
+/// Универсальная установка загрузчика (fabric или quilt) с автоматическим выбором последней версии
+pub fn install_loader(loader: &str, mc_version: &str, progress: &dyn Fn(String)) -> Result<String> {
+    let meta_url = match loader {
+        "quilt" => format!("https://meta.quiltmc.org/v3/versions/loader/{mc_version}"),
+        _ => format!("https://meta.fabricmc.net/v2/versions/loader/{mc_version}"),
+    };
+
+    progress(format!("fetching {loader} versions for {mc_version}"));
+    let body: Value = ureq::get(&meta_url).call()?.into_json()?;
+    let arr = body.as_array().ok_or_else(|| anyhow!("bad {loader} response"))?;
+
+    // Берем самую свежую версию загрузчика
+    let loader_ver = arr
+        .first()
+        .and_then(|e| e["loader"]["version"].as_str())
+        .ok_or_else(|| anyhow!("no {loader} loader found for {mc_version}"))?;
+
+    install_fabric(mc_version, loader_ver, progress)
+}
