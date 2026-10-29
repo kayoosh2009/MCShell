@@ -412,7 +412,21 @@ document.addEventListener('DOMContentLoaded', () => {
     const closeInstallModalBtn = document.getElementById('close-install-modal-btn');
     const availableList = document.getElementById('available-versions-list');
     const versionSearchInput = document.getElementById('version-search-input');
+    const loaderTabs = document.querySelectorAll('.loader-tab-btn');
     let allReleaseVersions = [];
+    let selectedLoader = 'vanilla';
+
+    loaderTabs.forEach(btn => {
+        btn.addEventListener('click', () => {
+            loaderTabs.forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            selectedLoader = btn.dataset.loader || 'vanilla';
+
+            const query = versionSearchInput ? versionSearchInput.value.trim().toLowerCase() : '';
+            const filtered = allReleaseVersions.filter(v => v.id.toLowerCase().includes(query));
+            renderAvailableVersions(filtered);
+        });
+    });
 
     function renderAvailableVersions(versionsToRender) {
         if (!availableList) return;
@@ -423,20 +437,23 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
+        const loaderLabel = selectedLoader === 'vanilla' ? 'Vanilla' : (selectedLoader === 'fabric' ? 'Fabric' : 'Quilt');
+        const badgeClass = selectedLoader !== 'vanilla' ? 'fabric' : '';
+
         versionsToRender.forEach(ver => {
             const row = document.createElement('div');
             row.className = 'install-version-row';
             row.innerHTML = `
                 <div class="version-info">
                     <span class="version-name">${ver.id}</span>
-                    <span class="version-badge">Release</span>
+                    <span class="version-badge ${badgeClass}">${loaderLabel}</span>
                 </div>
                 <button class="btn btn-primary start-install-btn" data-ver="${ver.id}">Install</button>
             `;
 
             row.querySelector('.start-install-btn').addEventListener('click', () => {
                 installModal.classList.add('hidden');
-                startVersionDownload(ver.id);
+                startVersionDownload(ver.id, selectedLoader);
             });
 
             availableList.appendChild(row);
@@ -491,17 +508,18 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // Запуск реального процесса загрузки через Rust бэкенд
-    async function startVersionDownload(versionId) {
+    // Запуск процесса загрузки с плашкой в боковом меню
+    async function startVersionDownload(versionId, loader = 'vanilla') {
+        const titleSuffix = loader !== 'vanilla' ? ` (${loader})` : '';
         if (downloadWidget) downloadWidget.classList.remove('hidden');
-        if (downloadTitle) downloadTitle.textContent = `Starting ${versionId}...`;
+        if (downloadTitle) downloadTitle.textContent = `Starting ${versionId}${titleSuffix}...`;
         if (downloadPercent) downloadPercent.textContent = '0%';
         if (downloadBarFill) downloadBarFill.style.width = '0%';
         if (downloadBytes) downloadBytes.textContent = 'Connecting...';
         if (downloadSpeed) downloadSpeed.textContent = '';
 
         try {
-            await api(`/api/install?version=${encodeURIComponent(versionId)}`, { method: 'POST' });
+            await api(`/api/install?version=${encodeURIComponent(versionId)}&loader=${encodeURIComponent(loader)}`, { method: 'POST' });
             pollProgress();
         } catch (err) {
             console.error('Install failed:', err);
