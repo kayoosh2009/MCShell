@@ -912,7 +912,7 @@ body {
 
 /* Модальное окно деталей/превью мода */
 .project-detail-card {
-    width: 680px;
+    width: 760px;
     max-height: 85vh;
     display: flex;
     flex-direction: column;
@@ -925,11 +925,12 @@ body {
 }
 
 .detail-icon {
-    width: 44px;
-    height: 44px;
-    border-radius: 8px;
+    width: 48px;
+    height: 48px;
+    border-radius: 10px;
     object-fit: cover;
     background: #18181b;
+    border: 1px solid var(--border-color);
 }
 
 .detail-author {
@@ -939,41 +940,82 @@ body {
 
 .detail-body {
     overflow-y: auto;
-    max-height: 520px;
-    padding-right: 6px;
+    max-height: 540px;
+    padding-right: 8px;
     margin: 16px 0;
     display: flex;
     flex-direction: column;
-    gap: 16px;
+    gap: 20px;
 }
 
-/* Галерея скриншотов */
+/* Крупная и красивая галерея скриншотов */
 .detail-gallery {
     display: flex;
-    gap: 10px;
+    gap: 12px;
     overflow-x: auto;
-    padding-bottom: 8px;
+    padding-bottom: 10px;
+    scroll-snap-type: x mandatory;
+}
+
+.detail-gallery::-webkit-scrollbar {
+    height: 6px;
+}
+
+.detail-gallery::-webkit-scrollbar-thumb {
+    background: #3f3f46;
+    border-radius: 3px;
 }
 
 .detail-gallery img {
-    height: 140px;
-    border-radius: 6px;
+    height: 180px;
+    aspect-ratio: 16 / 9;
+    border-radius: 8px;
     border: 1px solid var(--border-color);
     object-fit: cover;
+    flex-shrink: 0;
+    scroll-snap-align: start;
     cursor: pointer;
-    transition: transform 0.15s ease;
+    transition: transform 0.15s ease, border-color 0.15s ease;
 }
 
 .detail-gallery img:hover {
     transform: scale(1.02);
+    border-color: #52525b;
 }
 
+/* Форматированное описание */
 .detail-description {
     font-size: 14px;
-    line-height: 1.6;
-    color: var(--text-muted);
-    white-space: pre-wrap;
+    line-height: 1.65;
+    color: #d4d4d8;
     word-break: break-word;
+}
+
+.detail-description p {
+    margin-bottom: 12px;
+}
+
+.detail-description h1, .detail-description h2, .detail-description h3 {
+    color: var(--text-white);
+    margin: 16px 0 8px;
+    font-size: 16px;
+}
+
+.detail-description ul {
+    margin: 8px 0 12px 20px;
+}
+
+.detail-description li {
+    margin-bottom: 4px;
+}
+
+.detail-description a {
+    color: #60a5fa;
+    text-decoration: none;
+}
+
+.detail-description a:hover {
+    text-decoration: underline;
 }
 
 .detail-footer {

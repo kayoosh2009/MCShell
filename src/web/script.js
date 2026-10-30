@@ -727,8 +727,7 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             const data = await api(`/api/project?id=${encodeURIComponent(projectId)}`);
             if (data.body && detailDesc) {
-                // Очищаем markdown-разметку от тяжелых тегов для аккуратного чтения
-                detailDesc.textContent = data.body.replace(/<[^>]*>?/gm, '');
+                detailDesc.innerHTML = formatMarkdown(data.body);
             }
 
             if (data.gallery && data.gallery.length > 0 && detailGallery) {
@@ -744,6 +743,43 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch (err) {
             console.error('Failed to load project details:', err);
         }
+    }
+
+    // Чистый рендер описания без сломанных бейджей донатов
+    function formatMarkdown(raw) {
+        if (!raw) return '';
+
+        // 1. Убираем картинки-кнопки пожертвований и бейджи: [![...](...)](...) и ![...](...)
+        let text = raw.replace(/\[!\[.*?\]\(.*?\)\]\(.*?\)/g, '');
+        text = text.replace(/!\[.*?\]\(.*?\)/g, '');
+        text = text.replace(/<img[^>]*>/gi, '');
+
+        // 2. Убираем разделительные линии '---' и '***'
+        text = text.replace(/^---$/gm, '');
+        text = text.replace(/^\*\*\*$/gm, '');
+
+        // 3. Заголовки: #, ##, ### -> <h3>
+        text = text.replace(/^#{1,6}\s*(.+)$/gm, '<h3>$1</h3>');
+
+        // 4. Жирный и курсивный текст: **text** и *text*
+        text = text.replace(/\*\*(.+?)\*\*/g, '<b>$1</b>');
+        text = text.replace(/\*(.+?)\*/g, '<i>$1</i>');
+
+        // 5. Обычные ссылки: [Title](url)
+        text = text.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank">$1</a>');
+
+        // 6. Списки
+        text = text.replace(/^\s*[-*]\s+(.+)$/gm, '<li>$1</li>');
+
+        // 7. Формируем абзацы
+        const paragraphs = text.split(/\n{2,}/).map(p => {
+            p = p.trim();
+            if (!p) return '';
+            if (p.startsWith('<h3>') || p.startsWith('<li>')) return p;
+            return `<p>${p.replace(/\n/g, '<br>')}</p>`;
+        }).filter(Boolean);
+
+        return paragraphs.join('');
     }
 
     async function loadExplore(reset = false) {
