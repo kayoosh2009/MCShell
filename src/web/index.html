@@ -119,6 +119,33 @@
                 </div>
             </div>
 
+            <!-- Модальное окно деталей / превью мода или текстурпака -->
+            <div id="project-detail-modal" class="modal-overlay hidden">
+                <div class="modal-card project-detail-card">
+                    <div class="modal-header">
+                        <div class="detail-header-info">
+                            <img id="detail-icon" src="/elements/def-backgroud.png" alt="" class="detail-icon">
+                            <div>
+                                <h3 id="detail-title">Project Title</h3>
+                                <span id="detail-author" class="detail-author">by Author</span>
+                            </div>
+                        </div>
+                        <button id="close-detail-modal-btn" class="modal-close-btn">&times;</button>
+                    </div>
+
+                    <div class="detail-body">
+                        <!-- Галерея скриншотов -->
+                        <div id="detail-gallery" class="detail-gallery hidden"></div>
+                        <!-- Текстовое описание -->
+                        <div id="detail-desc" class="detail-description"></div>
+                    </div>
+
+                    <div class="detail-footer">
+                        <button id="detail-install-btn" class="btn btn-primary">Install</button>
+                    </div>
+                </div>
+            </div>
+
             <!-- ASCII Art в левом нижнем углу -->
             <pre id="ascii-art" class="ascii-art-box"></pre>
 

@@ -666,12 +666,84 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const installBtn = card.querySelector('.install-item-btn');
         if (installBtn && !isInstalled) {
-            installBtn.addEventListener('click', () => {
+            installBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
                 installProject(item.project_id, item.title, installBtn);
             });
         }
 
+        // Клик по карточке открывает окно превью / деталей
+        card.style.cursor = 'pointer';
+        card.addEventListener('click', () => {
+            openProjectDetail(item.project_id, item);
+        });
+
         return card;
+    }
+
+    // === Модальное окно превью мода / ресурс-пака ===
+    const detailModal = document.getElementById('project-detail-modal');
+    const closeDetailModalBtn = document.getElementById('close-detail-modal-btn');
+    const detailTitle = document.getElementById('detail-title');
+    const detailAuthor = document.getElementById('detail-author');
+    const detailIcon = document.getElementById('detail-icon');
+    const detailGallery = document.getElementById('detail-gallery');
+    const detailDesc = document.getElementById('detail-desc');
+    const detailInstallBtn = document.getElementById('detail-install-btn');
+
+    if (closeDetailModalBtn && detailModal) {
+        closeDetailModalBtn.addEventListener('click', () => detailModal.classList.add('hidden'));
+        detailModal.addEventListener('click', (e) => {
+            if (e.target === detailModal) detailModal.classList.add('hidden');
+        });
+    }
+
+    async function openProjectDetail(projectId, item) {
+        if (!detailModal) return;
+
+        // Предварительное заполнение базовыми данными
+        if (detailTitle) detailTitle.textContent = item.title;
+        if (detailAuthor) detailAuthor.textContent = `by ${item.author || 'Unknown'}`;
+        if (detailIcon) detailIcon.src = item.icon_url || '/elements/def-backgroud.png';
+        if (detailDesc) detailDesc.textContent = item.description || 'Loading detailed description...';
+        if (detailGallery) {
+            detailGallery.innerHTML = '';
+            detailGallery.classList.add('hidden');
+        }
+
+        const isInstalled = installedIds.has(projectId) || installedIds.has(item.slug);
+        if (detailInstallBtn) {
+            detailInstallBtn.className = `btn ${isInstalled ? 'btn-installed' : 'btn-primary'}`;
+            detailInstallBtn.textContent = isInstalled ? 'Installed' : 'Install';
+            detailInstallBtn.disabled = isInstalled;
+            detailInstallBtn.onclick = () => {
+                installProject(projectId, item.title, detailInstallBtn);
+            };
+        }
+
+        detailModal.classList.remove('hidden');
+
+        // Запрашиваем полные данные с Modrinth через бэкенд
+        try {
+            const data = await api(`/api/project?id=${encodeURIComponent(projectId)}`);
+            if (data.body && detailDesc) {
+                // Очищаем markdown-разметку от тяжелых тегов для аккуратного чтения
+                detailDesc.textContent = data.body.replace(/<[^>]*>?/gm, '');
+            }
+
+            if (data.gallery && data.gallery.length > 0 && detailGallery) {
+                detailGallery.innerHTML = '';
+                data.gallery.forEach(img => {
+                    const imgEl = document.createElement('img');
+                    imgEl.src = img.url;
+                    imgEl.alt = img.title || 'Screenshot';
+                    detailGallery.appendChild(imgEl);
+                });
+                detailGallery.classList.remove('hidden');
+            }
+        } catch (err) {
+            console.error('Failed to load project details:', err);
+        }
     }
 
     async function loadExplore(reset = false) {
