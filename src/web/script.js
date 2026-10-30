@@ -527,6 +527,183 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    // === 5. Каталог Explore (Моды и Ресурс-паки с Modrinth) ===
+    let exploreType = 'mod';
+    let exploreSearchTimeout = null;
+    let installedIds = new Set();
+    let exploreInitialized = false;
+
+    const exploreGrid = document.getElementById('explore-grid');
+    const exploreTargetSelect = document.getElementById('explore-target-select');
+    const exploreSearchInput = document.getElementById('explore-search-input');
+    const exploreTypeButtons = document.querySelectorAll('.explore-type-btn');
+
+    async function initExplore() {
+        if (!exploreInitialized) {
+            exploreInitialized = true;
+            await loadExploreTargets();
+            setupExploreEvents();
+        }
+        await loadExplore();
+    }
+
+    async function loadExploreTargets() {
+        if (!exploreTargetSelect) return;
+        try {
+            const targets = await api('/api/targets');
+            exploreTargetSelect.innerHTML = '';
+
+            if (!targets || targets.length === 0) {
+                exploreTargetSelect.innerHTML = '<option value="">No versions installed</option>';
+                return;
+            }
+
+            targets.forEach((t, idx) => {
+                const opt = document.createElement('option');
+                opt.value = JSON.stringify({ mc: t.mc, loader: t.loader || '' });
+                opt.textContent = t.label;
+                if (idx === 0) opt.selected = true;
+                exploreTargetSelect.appendChild(opt);
+            });
+        } catch (err) {
+            console.error('Failed to load explore targets:', err);
+        }
+    }
+
+    function setupExploreEvents() {
+        exploreTypeButtons.forEach(btn => {
+            btn.addEventListener('click', () => {
+                exploreTypeButtons.forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                exploreType = btn.dataset.type || 'mod';
+                loadExplore();
+            });
+        });
+
+        if (exploreTargetSelect) {
+            exploreTargetSelect.addEventListener('change', () => {
+                loadExplore();
+            });
+        }
+
+        if (exploreSearchInput) {
+            exploreSearchInput.addEventListener('input', () => {
+                clearTimeout(exploreSearchTimeout);
+                exploreSearchTimeout = setTimeout(() => {
+                    loadExplore();
+                }, 350);
+            });
+        }
+    }
+
+    function getSelectedTarget() {
+        if (!exploreTargetSelect || !exploreTargetSelect.value) {
+            return { mc: '', loader: '' };
+        }
+        try {
+            return JSON.parse(exploreTargetSelect.value);
+        } catch (_) {
+            return { mc: '', loader: '' };
+        }
+    }
+
+    async function loadExplore() {
+        if (!exploreGrid) return;
+        exploreGrid.innerHTML = '<span class="empty-text">Searching Modrinth...</span>';
+
+        const target = getSelectedTarget();
+        const query = exploreSearchInput ? exploreSearchInput.value.trim() : '';
+
+        try {
+            // Подгружаем список уже установленных проектов
+            const installed = await api(`/api/installed?kind=${exploreType}`);
+            installedIds = new Set(installed || []);
+
+            // Запрашиваем каталог через бэкенд Rust
+            let url = `/api/search?kind=${exploreType}`;
+            if (query) url += `&q=${encodeURIComponent(query)}`;
+            if (target.mc) url += `&mc=${encodeURIComponent(target.mc)}`;
+            if (target.loader && exploreType === 'mod') url += `&loader=${encodeURIComponent(target.loader)}`;
+
+            const res = await api(url);
+            const hits = res.hits || [];
+
+            if (hits.length === 0) {
+                exploreGrid.innerHTML = '<span class="empty-text">No items found for current selection</span>';
+                return;
+            }
+
+            exploreGrid.innerHTML = '';
+            hits.forEach(item => {
+                const isInstalled = installedIds.has(item.project_id) || installedIds.has(item.slug);
+                const downloads = item.downloads ? item.downloads.toLocaleString() : '0';
+                const icon = item.icon_url || '/elements/def-backgroud.png';
+
+                const card = document.createElement('div');
+                card.className = 'explore-card';
+                card.innerHTML = `
+                    <div class="explore-card-top">
+                        <img src="${icon}" alt="${item.title}" class="explore-card-icon" onerror="this.src='/elements/def-backgroud.png'">
+                        <div class="explore-card-header">
+                            <div class="explore-card-title" title="${item.title}">${item.title}</div>
+                            <div class="explore-card-author">by ${item.author || 'Unknown'}</div>
+                        </div>
+                    </div>
+                    <div class="explore-card-desc">${item.description || 'No description provided.'}</div>
+                    <div class="explore-card-footer">
+                        <span class="explore-card-stats">⬇ ${downloads}</span>
+                        <button class="btn ${isInstalled ? 'btn-installed' : 'btn-primary'} install-item-btn" 
+                                data-id="${item.project_id}" 
+                                ${isInstalled ? 'disabled' : ''}>
+                            ${isInstalled ? 'Installed' : 'Install'}
+                        </button>
+                    </div>
+                `;
+
+                const installBtn = card.querySelector('.install-item-btn');
+                if (installBtn && !isInstalled) {
+                    installBtn.addEventListener('click', () => {
+                        installProject(item.project_id, item.title, installBtn);
+                    });
+                }
+
+                exploreGrid.appendChild(card);
+            });
+        } catch (err) {
+            console.error('Failed to load explore items:', err);
+            exploreGrid.innerHTML = '<span class="empty-text">Error loading catalog</span>';
+        }
+    }
+
+    async function installProject(projectId, title, btn) {
+        const target = getSelectedTarget();
+        btn.textContent = 'Installing...';
+        btn.disabled = true;
+
+        try {
+            let url = `/api/install?id=${encodeURIComponent(projectId)}&kind=${exploreType}`;
+            if (target.mc) url += `&mc=${encodeURIComponent(target.mc)}`;
+            if (target.loader && exploreType === 'mod') url += `&loader=${encodeURIComponent(target.loader)}`;
+
+            const res = await api(url, { method: 'POST' });
+            if (res.ok) {
+                btn.textContent = 'Installed';
+                btn.className = 'btn btn-installed install-item-btn';
+                installedIds.add(projectId);
+            } else {
+                btn.textContent = 'Failed';
+                btn.disabled = false;
+                console.error('Install error:', res.error);
+                setTimeout(() => { btn.textContent = 'Install'; }, 2000);
+            }
+        } catch (err) {
+            console.error('Failed to install project:', err);
+            btn.textContent = 'Error';
+            btn.disabled = false;
+            setTimeout(() => { btn.textContent = 'Install'; }, 2000);
+        }
+    }
+
     // 5. Навигация в боковом меню
     const navButtons = document.querySelectorAll('.nav-btn');
     navButtons.forEach(btn => {
@@ -547,6 +724,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (page === 'versions') {
                 loadVersions();
+            }
+            if (page === 'explore') {
+                initExplore();
             }
         });
     });
