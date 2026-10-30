@@ -951,9 +951,11 @@ body {
 /* Крупная и красивая галерея скриншотов */
 .detail-gallery {
     display: flex;
-    gap: 12px;
+    gap: 14px;
     overflow-x: auto;
-    padding-bottom: 10px;
+    overflow-y: hidden;
+    padding: 4px 2px 12px;
+    min-height: 190px;
     scroll-snap-type: x mandatory;
 }
 
@@ -961,26 +963,37 @@ body {
     height: 6px;
 }
 
+.detail-gallery::-webkit-scrollbar-track {
+    background: var(--bg-element);
+    border-radius: 3px;
+}
+
 .detail-gallery::-webkit-scrollbar-thumb {
     background: #3f3f46;
     border-radius: 3px;
 }
 
+.detail-gallery::-webkit-scrollbar-thumb:hover {
+    background: #52525b;
+}
+
 .detail-gallery img {
-    height: 180px;
-    aspect-ratio: 16 / 9;
+    width: 300px;
+    height: 175px;
+    min-width: 300px;
     border-radius: 8px;
     border: 1px solid var(--border-color);
     object-fit: cover;
-    flex-shrink: 0;
+    flex: 0 0 300px;
+    background: #18181b;
     scroll-snap-align: start;
     cursor: pointer;
     transition: transform 0.15s ease, border-color 0.15s ease;
 }
 
 .detail-gallery img:hover {
-    transform: scale(1.02);
-    border-color: #52525b;
+    transform: translateY(-2px);
+    border-color: #71717a;
 }
 
 /* Форматированное описание */
