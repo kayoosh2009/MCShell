@@ -532,11 +532,16 @@ document.addEventListener('DOMContentLoaded', () => {
     let exploreSearchTimeout = null;
     let installedIds = new Set();
     let exploreInitialized = false;
+    let allTargets = [];
+    let exploreOffset = 0;
+    let isLoadingMore = false;
+    let hasMoreItems = true;
 
     const exploreGrid = document.getElementById('explore-grid');
     const exploreTargetSelect = document.getElementById('explore-target-select');
     const exploreSearchInput = document.getElementById('explore-search-input');
     const exploreTypeButtons = document.querySelectorAll('.explore-type-btn');
+    const contentPanel = document.querySelector('.content-panel');
 
     async function initExplore() {
         if (!exploreInitialized) {
@@ -544,30 +549,42 @@ document.addEventListener('DOMContentLoaded', () => {
             await loadExploreTargets();
             setupExploreEvents();
         }
-        await loadExplore();
+        await loadExplore(true);
     }
 
     async function loadExploreTargets() {
-        if (!exploreTargetSelect) return;
         try {
-            const targets = await api('/api/targets');
-            exploreTargetSelect.innerHTML = '';
-
-            if (!targets || targets.length === 0) {
-                exploreTargetSelect.innerHTML = '<option value="">No versions installed</option>';
-                return;
-            }
-
-            targets.forEach((t, idx) => {
-                const opt = document.createElement('option');
-                opt.value = JSON.stringify({ mc: t.mc, loader: t.loader || '' });
-                opt.textContent = t.label;
-                if (idx === 0) opt.selected = true;
-                exploreTargetSelect.appendChild(opt);
-            });
+            allTargets = await api('/api/targets') || [];
+            renderTargetOptions();
         } catch (err) {
             console.error('Failed to load explore targets:', err);
         }
+    }
+
+    // Если выбраны моды — исключаем ваниль, оставляем только mod loaders (Fabric, Quilt)
+    function renderTargetOptions() {
+        if (!exploreTargetSelect) return;
+        const prevSelected = exploreTargetSelect.value;
+        exploreTargetSelect.innerHTML = '';
+
+        const filtered = exploreType === 'mod' 
+            ? allTargets.filter(t => t.loader === 'fabric' || t.loader === 'quilt')
+            : allTargets;
+
+        if (filtered.length === 0) {
+            const msg = exploreType === 'mod' ? 'No Fabric/Quilt installed' : 'No versions installed';
+            exploreTargetSelect.innerHTML = `<option value="">${msg}</option>`;
+            return;
+        }
+
+        filtered.forEach((t, idx) => {
+            const val = JSON.stringify({ mc: t.mc, loader: t.loader || '' });
+            const opt = document.createElement('option');
+            opt.value = val;
+            opt.textContent = t.label;
+            if (val === prevSelected || idx === 0) opt.selected = true;
+            exploreTargetSelect.appendChild(opt);
+        });
     }
 
     function setupExploreEvents() {
@@ -576,13 +593,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 exploreTypeButtons.forEach(b => b.classList.remove('active'));
                 btn.classList.add('active');
                 exploreType = btn.dataset.type || 'mod';
-                loadExplore();
+                renderTargetOptions();
+                loadExplore(true);
             });
         });
 
         if (exploreTargetSelect) {
             exploreTargetSelect.addEventListener('change', () => {
-                loadExplore();
+                loadExplore(true);
             });
         }
 
@@ -590,8 +608,21 @@ document.addEventListener('DOMContentLoaded', () => {
             exploreSearchInput.addEventListener('input', () => {
                 clearTimeout(exploreSearchTimeout);
                 exploreSearchTimeout = setTimeout(() => {
-                    loadExplore();
+                    loadExplore(true);
                 }, 350);
+            });
+        }
+
+        // Бесконечная прокрутка при скролле к концу панели
+        if (contentPanel) {
+            contentPanel.addEventListener('scroll', () => {
+                const exploreTab = document.getElementById('tab-explore');
+                if (!exploreTab || exploreTab.classList.contains('hidden')) return;
+
+                const scrollBottom = contentPanel.scrollHeight - contentPanel.scrollTop - contentPanel.clientHeight;
+                if (scrollBottom < 260 && !isLoadingMore && hasMoreItems) {
+                    loadExplore(false);
+                }
             });
         }
     }
@@ -607,20 +638,62 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    async function loadExplore() {
+    function renderCard(item) {
+        const isInstalled = installedIds.has(item.project_id) || installedIds.has(item.slug);
+        const downloads = item.downloads ? item.downloads.toLocaleString() : '0';
+        const icon = item.icon_url || '/elements/def-backgroud.png';
+
+        const card = document.createElement('div');
+        card.className = 'explore-card';
+        card.innerHTML = `
+            <div class="explore-card-top">
+                <img src="${icon}" alt="${item.title}" class="explore-card-icon" onerror="this.src='/elements/def-backgroud.png'">
+                <div class="explore-card-header">
+                    <div class="explore-card-title" title="${item.title}">${item.title}</div>
+                    <div class="explore-card-author">by ${item.author || 'Unknown'}</div>
+                </div>
+            </div>
+            <div class="explore-card-desc">${item.description || 'No description provided.'}</div>
+            <div class="explore-card-footer">
+                <span class="explore-card-stats">⬇ ${downloads}</span>
+                <button class="btn ${isInstalled ? 'btn-installed' : 'btn-primary'} install-item-btn" 
+                        data-id="${item.project_id}" 
+                        ${isInstalled ? 'disabled' : ''}>
+                    ${isInstalled ? 'Installed' : 'Install'}
+                </button>
+            </div>
+        `;
+
+        const installBtn = card.querySelector('.install-item-btn');
+        if (installBtn && !isInstalled) {
+            installBtn.addEventListener('click', () => {
+                installProject(item.project_id, item.title, installBtn);
+            });
+        }
+
+        return card;
+    }
+
+    async function loadExplore(reset = false) {
         if (!exploreGrid) return;
-        exploreGrid.innerHTML = '<span class="empty-text">Searching Modrinth...</span>';
+
+        if (reset) {
+            exploreOffset = 0;
+            hasMoreItems = true;
+            exploreGrid.innerHTML = '<span class="empty-text">Searching Modrinth...</span>';
+        }
+
+        if (isLoadingMore || !hasMoreItems) return;
+        isLoadingMore = true;
 
         const target = getSelectedTarget();
         const query = exploreSearchInput ? exploreSearchInput.value.trim() : '';
 
         try {
-            // Подгружаем список уже установленных проектов
             const installed = await api(`/api/installed?kind=${exploreType}`);
             installedIds = new Set(installed || []);
 
-            // Запрашиваем каталог через бэкенд Rust
-            let url = `/api/search?kind=${exploreType}`;
+            let url = `/api/search?kind=${exploreType}&offset=${exploreOffset}`;
             if (query) url += `&q=${encodeURIComponent(query)}`;
             if (target.mc) url += `&mc=${encodeURIComponent(target.mc)}`;
             if (target.loader && exploreType === 'mod') url += `&loader=${encodeURIComponent(target.loader)}`;
@@ -628,50 +701,31 @@ document.addEventListener('DOMContentLoaded', () => {
             const res = await api(url);
             const hits = res.hits || [];
 
-            if (hits.length === 0) {
-                exploreGrid.innerHTML = '<span class="empty-text">No items found for current selection</span>';
-                return;
+            if (reset) {
+                exploreGrid.innerHTML = '';
             }
 
-            exploreGrid.innerHTML = '';
-            hits.forEach(item => {
-                const isInstalled = installedIds.has(item.project_id) || installedIds.has(item.slug);
-                const downloads = item.downloads ? item.downloads.toLocaleString() : '0';
-                const icon = item.icon_url || '/elements/def-backgroud.png';
-
-                const card = document.createElement('div');
-                card.className = 'explore-card';
-                card.innerHTML = `
-                    <div class="explore-card-top">
-                        <img src="${icon}" alt="${item.title}" class="explore-card-icon" onerror="this.src='/elements/def-backgroud.png'">
-                        <div class="explore-card-header">
-                            <div class="explore-card-title" title="${item.title}">${item.title}</div>
-                            <div class="explore-card-author">by ${item.author || 'Unknown'}</div>
-                        </div>
-                    </div>
-                    <div class="explore-card-desc">${item.description || 'No description provided.'}</div>
-                    <div class="explore-card-footer">
-                        <span class="explore-card-stats">⬇ ${downloads}</span>
-                        <button class="btn ${isInstalled ? 'btn-installed' : 'btn-primary'} install-item-btn" 
-                                data-id="${item.project_id}" 
-                                ${isInstalled ? 'disabled' : ''}>
-                            ${isInstalled ? 'Installed' : 'Install'}
-                        </button>
-                    </div>
-                `;
-
-                const installBtn = card.querySelector('.install-item-btn');
-                if (installBtn && !isInstalled) {
-                    installBtn.addEventListener('click', () => {
-                        installProject(item.project_id, item.title, installBtn);
-                    });
+            if (hits.length === 0) {
+                hasMoreItems = false;
+                if (reset) {
+                    exploreGrid.innerHTML = '<span class="empty-text">No items found for current selection</span>';
                 }
-
-                exploreGrid.appendChild(card);
-            });
+            } else {
+                hits.forEach(item => {
+                    exploreGrid.appendChild(renderCard(item));
+                });
+                exploreOffset += hits.length;
+                if (hits.length < 20) {
+                    hasMoreItems = false;
+                }
+            }
         } catch (err) {
             console.error('Failed to load explore items:', err);
-            exploreGrid.innerHTML = '<span class="empty-text">Error loading catalog</span>';
+            if (reset) {
+                exploreGrid.innerHTML = '<span class="empty-text">Error loading catalog</span>';
+            }
+        } finally {
+            isLoadingMore = false;
         }
     }
 
