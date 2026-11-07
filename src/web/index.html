@@ -76,6 +76,7 @@
                     <div class="section-header">
                         <h2>Versions & Builds</h2>
                         <div class="versions-actions">
+                            <button id="open-build-modal-btn" class="btn btn-secondary">+ Create Modpack</button>
                             <button id="open-install-modal-btn" class="btn btn-primary">+ Install Version</button>
                         </div>
                     </div>
@@ -142,6 +143,60 @@
 
                     <div class="detail-footer">
                         <button id="detail-install-btn" class="btn btn-primary">Install</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Модальное окно конструктора сборки -->
+            <div id="build-modal" class="modal-overlay hidden">
+                <div class="modal-card build-card">
+                    <div class="modal-header">
+                        <h3>Create New Modpack</h3>
+                        <button id="close-build-modal-btn" class="modal-close-btn">&times;</button>
+                    </div>
+
+                    <div class="build-form">
+                        <div class="form-row">
+                            <div class="form-group flex-1">
+                                <label for="build-name-input">Modpack Name</label>
+                                <input type="text" id="build-name-input" placeholder="e.g. My Survival Pack" autocomplete="off">
+                            </div>
+                            <div class="form-group flex-1">
+                                <label for="build-base-version">Base Loader & Version</label>
+                                <select id="build-base-version">
+                                    <option value="">Select installed loader...</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="build-selectors-grid">
+                            <!-- Колонка выбора модов -->
+                            <div class="selector-box">
+                                <div class="selector-header">
+                                    <h4>Mods</h4>
+                                    <span id="mods-count-badge" class="count-badge">0 selected</span>
+                                </div>
+                                <div id="build-mods-list" class="checklist-box">
+                                    <span class="empty-text">Select base version first</span>
+                                </div>
+                            </div>
+
+                            <!-- Колонка выбора ресурс-паков -->
+                            <div class="selector-box">
+                                <div class="selector-header">
+                                    <h4>Resource Packs</h4>
+                                    <span id="packs-count-badge" class="count-badge">0 selected</span>
+                                </div>
+                                <div id="build-packs-list" class="checklist-box">
+                                    <span class="empty-text">No packs found</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="modal-actions build-actions">
+                        <button id="cancel-build-btn" class="btn btn-secondary">Cancel</button>
+                        <button id="save-build-btn" class="btn btn-primary">Create Build</button>
                     </div>
                 </div>
             </div>
