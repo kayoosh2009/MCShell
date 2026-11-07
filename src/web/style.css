@@ -1037,3 +1037,156 @@ body {
     border-top: 1px solid var(--border-color);
     padding-top: 14px;
 }
+
+/* === Конструктор сборки модов (Build Modal) === */
+.build-card {
+    width: 780px;
+    max-height: 85vh;
+    display: flex;
+    flex-direction: column;
+}
+
+.build-form {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+    margin: 16px 0;
+}
+
+.form-row {
+    display: flex;
+    gap: 16px;
+}
+
+.flex-1 {
+    flex: 1;
+}
+
+.form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.form-group label {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+}
+
+.form-group input, .form-group select {
+    background: var(--bg-element);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    padding: 10px 14px;
+    color: var(--text-white);
+    font-size: 14px;
+    outline: none;
+    transition: border-color 0.15s ease;
+}
+
+.form-group input:focus, .form-group select:focus {
+    border-color: #52525b;
+}
+
+.build-selectors-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+}
+
+.selector-box {
+    background: #141417;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.selector-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.selector-header h4 {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-white);
+}
+
+.count-badge {
+    font-size: 11px;
+    color: var(--text-dim);
+    background: var(--bg-element);
+    padding: 2px 8px;
+    border-radius: 4px;
+}
+
+.checklist-box {
+    overflow-y: auto;
+    max-height: 250px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding-right: 4px;
+}
+
+.check-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 10px;
+    background: var(--bg-element);
+    border: 1px solid transparent;
+    border-radius: 6px;
+    cursor: pointer;
+    user-select: none;
+    transition: all 0.15s ease;
+}
+
+.check-item:hover {
+    background: var(--bg-element-hover);
+    border-color: var(--border-color);
+}
+
+.check-item input[type="checkbox"] {
+    cursor: pointer;
+    accent-color: #3b82f6;
+    width: 16px;
+    height: 16px;
+}
+
+.check-item-info {
+    flex: 1;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    min-width: 0;
+}
+
+.check-item-name {
+    font-size: 13px;
+    color: var(--text-white);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.check-item-version {
+    font-size: 10px;
+    font-weight: 600;
+    background: #27272a;
+    color: var(--text-muted);
+    padding: 2px 6px;
+    border-radius: 4px;
+    margin-left: 8px;
+}
+
+.build-actions {
+    margin-top: 8px;
+}
