@@ -527,7 +527,203 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // === 5. Каталог Explore (Моды и Ресурс-паки с Modrinth) ===
+    // === 4.5 Конструктор сборки модов (Modpack Builder) ===
+    const buildModal = document.getElementById('build-modal');
+    const openBuildModalBtn = document.getElementById('open-build-modal-btn');
+    const closeBuildModalBtn = document.getElementById('close-build-modal-btn');
+    const cancelBuildBtn = document.getElementById('cancel-build-btn');
+    const saveBuildBtn = document.getElementById('save-build-btn');
+
+    const buildNameInput = document.getElementById('build-name-input');
+    const buildBaseSelect = document.getElementById('build-base-version');
+    const buildModsList = document.getElementById('build-mods-list');
+    const buildPacksList = document.getElementById('build-packs-list');
+    const modsCountBadge = document.getElementById('mods-count-badge');
+    const packsCountBadge = document.getElementById('packs-count-badge');
+
+    let localAssets = { mods: [], packs: [] };
+
+    if (openBuildModalBtn && buildModal) {
+        openBuildModalBtn.addEventListener('click', () => {
+            buildModal.classList.remove('hidden');
+            initBuildModal();
+        });
+    }
+
+    if (closeBuildModalBtn && buildModal) {
+        closeBuildModalBtn.addEventListener('click', () => buildModal.classList.add('hidden'));
+    }
+    if (cancelBuildBtn && buildModal) {
+        cancelBuildBtn.addEventListener('click', () => buildModal.classList.add('hidden'));
+    }
+
+    async function initBuildModal() {
+        if (buildNameInput) buildNameInput.value = '';
+        if (modsCountBadge) modsCountBadge.textContent = '0 selected';
+        if (packsCountBadge) packsCountBadge.textContent = '0 selected';
+
+        try {
+            // Подгружаем модовые таргеты и скачанные ассеты
+            const [targets, assets] = await Promise.all([
+                api('/api/targets'),
+                api('/api/build/assets')
+            ]);
+
+            localAssets = assets || { mods: [], packs: [] };
+
+            // Заполняем лоадеры в селектор (только Fabric/Quilt)
+            if (buildBaseSelect) {
+                buildBaseSelect.innerHTML = '<option value="">Select base loader...</option>';
+                const modLoaders = (targets || []).filter(t => t.loader === 'fabric' || t.loader === 'quilt');
+                modLoaders.forEach(t => {
+                    const opt = document.createElement('option');
+                    opt.value = t.id;
+                    opt.dataset.mc = t.mc;
+                    opt.textContent = t.label;
+                    buildBaseSelect.appendChild(opt);
+                });
+            }
+
+            renderPacksList();
+            renderFilteredMods();
+        } catch (err) {
+            console.error('Failed to init build modal:', err);
+        }
+    }
+
+    if (buildBaseSelect) {
+        buildBaseSelect.addEventListener('change', () => {
+            renderFilteredMods();
+        });
+    }
+
+    function renderFilteredMods() {
+        if (!buildModsList) return;
+        const selectedOpt = buildBaseSelect ? buildBaseSelect.selectedOptions[0] : null;
+        const targetMc = selectedOpt ? selectedOpt.dataset.mc : null;
+
+        if (!targetMc) {
+            buildModsList.innerHTML = '<span class="empty-text">Select base version first</span>';
+            updateBadges();
+            return;
+        }
+
+        buildModsList.innerHTML = '';
+        const mods = localAssets.mods || [];
+
+        // Фильтруем моды: показываем те, которые подходят под выбранную версию Minecraft
+        const suitable = mods.filter(m => {
+            if (!m.game_version) return true; // если метаданных нет, оставляем доступным
+            return m.game_version.includes(targetMc) || targetMc.startsWith(m.game_version);
+        });
+
+        if (suitable.length === 0) {
+            buildModsList.innerHTML = '<span class="empty-text">No downloaded mods match this version</span>';
+            updateBadges();
+            return;
+        }
+
+        suitable.forEach(mod => {
+            const label = document.createElement('label');
+            label.className = 'check-item';
+            label.innerHTML = `
+                <input type="checkbox" class="mod-checkbox" value="${mod.file}">
+                <div class="check-item-info">
+                    <span class="check-item-name" title="${mod.name}">${mod.name}</span>
+                    <span class="check-item-version">${mod.game_version || 'Any'}</span>
+                </div>
+            `;
+            label.querySelector('input').addEventListener('change', updateBadges);
+            buildModsList.appendChild(label);
+        });
+
+        updateBadges();
+    }
+
+    function renderPacksList() {
+        if (!buildPacksList) return;
+        buildPacksList.innerHTML = '';
+        const packs = localAssets.packs || [];
+
+        if (packs.length === 0) {
+            buildPacksList.innerHTML = '<span class="empty-text">No resource packs found</span>';
+            return;
+        }
+
+        packs.forEach(pack => {
+            const label = document.createElement('label');
+            label.className = 'check-item';
+            label.innerHTML = `
+                <input type="checkbox" class="pack-checkbox" value="${pack.file}">
+                <div class="check-item-info">
+                    <span class="check-item-name" title="${pack.name}">${pack.name}</span>
+                </div>
+            `;
+            label.querySelector('input').addEventListener('change', updateBadges);
+            buildPacksList.appendChild(label);
+        });
+    }
+
+    function updateBadges() {
+        if (modsCountBadge) {
+            const selectedMods = document.querySelectorAll('.mod-checkbox:checked').length;
+            modsCountBadge.textContent = `${selectedMods} selected`;
+        }
+        if (packsCountBadge) {
+            const selectedPacks = document.querySelectorAll('.pack-checkbox:checked').length;
+            packsCountBadge.textContent = `${selectedPacks} selected`;
+        }
+    }
+
+    // Сохранение сборки
+    if (saveBuildBtn) {
+        saveBuildBtn.addEventListener('click', async () => {
+            const name = buildNameInput ? buildNameInput.value.trim() : '';
+            const baseVersion = buildBaseSelect ? buildBaseSelect.value : '';
+
+            if (!name) {
+                alert('Please enter a modpack name');
+                if (buildNameInput) buildNameInput.focus();
+                return;
+            }
+            if (!baseVersion) {
+                alert('Please select a base loader version');
+                return;
+            }
+
+            const selectedMods = Array.from(document.querySelectorAll('.mod-checkbox:checked')).map(cb => cb.value);
+            const selectedPacks = Array.from(document.querySelectorAll('.pack-checkbox:checked')).map(cb => cb.value);
+
+            saveBuildBtn.textContent = 'Creating...';
+            saveBuildBtn.disabled = true;
+
+            try {
+                const res = await api('/api/build/create', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        name: name,
+                        base_version: baseVersion,
+                        mods: selectedMods,
+                        packs: selectedPacks
+                    })
+                });
+
+                if (res.ok) {
+                    buildModal.classList.add('hidden');
+                    loadVersions(); // Перезагружаем список установленных версий
+                } else {
+                    alert('Error creating build: ' + (res.error || 'Unknown error'));
+                }
+            } catch (err) {
+                console.error('Failed to create build:', err);
+                alert('Failed to connect to launcher');
+            } finally {
+                saveBuildBtn.textContent = 'Create Build';
+                saveBuildBtn.disabled = false;
+            }
+        });
+    }
     let exploreType = 'mod';
     let exploreSearchTimeout = null;
     let installedIds = new Set();
