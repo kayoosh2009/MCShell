@@ -296,6 +296,24 @@ fn handle(mut stream: TcpStream, state: &Arc<State>) -> Result<()> {
                 json_response(&mut stream, 400, &json!({ "ok": false, "error": "missing id" }))
             }
         }
+        ("GET", "/api/build/assets") => {
+            json_response(&mut stream, 200, &scan_local_assets())
+        }
+        ("POST", "/api/build/create") => {
+            let body_str = req
+                .split_once("\r\n\r\n")
+                .map(|(_, b)| b)
+                .or_else(|| req.split_once("\n\n").map(|(_, b)| b))
+                .unwrap_or("");
+
+            match create_custom_build(body_str) {
+                Ok(build_id) => {
+                    let _ = state.tx.lock().unwrap().send(format!("created modpack: {build_id}"));
+                    json_response(&mut stream, 200, &json!({ "ok": true, "id": build_id }))
+                }
+                Err(e) => json_response(&mut stream, 400, &json!({ "ok": false, "error": e.to_string() })),
+            }
+        }
         ("GET", "/api/targets") => json_response(&mut stream, 200, &json!(list_targets())),
         ("GET", "/api/installed") => {
             json_response(&mut stream, 200, &json!(installed_ids(kind_of(&q))))
@@ -552,4 +570,107 @@ fn install(id: &str, kind: &str, ctx: &Context, seen: &mut Vec<String>, done: &m
         }
     }
     Ok(())
+}
+
+fn scan_local_assets() -> Value {
+    let mut mods_list = Vec::new();
+    let mods_dir = paths::mods_dir();
+
+    if let Ok(entries) = std::fs::read_dir(&mods_dir) {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.extension().and_then(|e| e.to_str()) == Some("jar") {
+                let filename = entry.file_name().to_string_lossy().to_string();
+                let mut game_version = String::new();
+                let mut mod_name = filename.clone();
+
+                // Пробуем быстро прочитать fabric.mod.json из zip-архива
+                if let Ok(file) = File::open(&path) {
+                    if let Ok(mut archive) = zip::ZipArchive::new(file) {
+                        if let Ok(mut mod_json_file) = archive.by_name("fabric.mod.json") {
+                            let mut content = String::new();
+                            if mod_json_file.read_to_string(&mut content).is_ok() {
+                                if let Ok(parsed) = serde_json::from_str::<Value>(&content) {
+                                    if let Some(name) = parsed["name"].as_str() {
+                                        mod_name = name.to_string();
+                                    }
+                                    if let Some(mc) = parsed["depends"]["minecraft"].as_str() {
+                                        game_version = mc.to_string();
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                mods_list.push(json!({
+                    "file": filename,
+                    "name": mod_name,
+                    "game_version": game_version
+                }));
+            }
+        }
+    }
+
+    let mut packs_list = Vec::new();
+    let packs_dir = paths::packs_dir();
+    if let Ok(entries) = std::fs::read_dir(&packs_dir) {
+        for entry in entries.flatten() {
+            let filename = entry.file_name().to_string_lossy().to_string();
+            if filename.ends_with(".zip") || entry.path().is_dir() {
+                packs_list.push(json!({ "file": filename, "name": filename }));
+            }
+        }
+    }
+
+    json!({ "mods": mods_list, "packs": packs_list })
+}
+
+fn create_custom_build(payload: &str) -> Result<String> {
+    let data: Value = serde_json::from_str(payload)?;
+    let raw_name = data["name"].as_str().ok_or_else(|| anyhow!("missing build name"))?.trim();
+    let base_version = data["base_version"].as_str().ok_or_else(|| anyhow!("missing base version"))?;
+
+    // Безопасное имя папки сборки (латиница, цифры, дефисы)
+    let safe_id = raw_name
+        .chars()
+        .map(|c| if c.is_alphanumeric() || c == '-' || c == '_' { c } else { '-' })
+        .collect::<String>()
+        .trim_matches('-')
+        .to_lowercase();
+
+    if safe_id.is_empty() {
+        bail!("invalid modpack name");
+    }
+
+    let build_id = format!("build-{}", safe_id);
+    let target_dir = paths::versions_dir().join(&build_id);
+    std::fs::create_dir_all(&target_dir)?;
+
+    // Генерируем манифест версии, наследующий всю структуру (джарник, лоадер) от base_version
+    let manifest = json!({
+        "id": build_id,
+        "inheritsFrom": base_version,
+        "type": "custom",
+        "time": chrono_compat_now(),
+        "releaseTime": chrono_compat_now(),
+        "minecraftArguments": null,
+        "custom_profile": {
+            "name": raw_name,
+            "mods": data.get("mods").unwrap_or(&json!([])),
+            "packs": data.get("packs").unwrap_or(&json!([]))
+        }
+    });
+
+    let json_path = target_dir.join(format!("{build_id}.json"));
+    std::fs::write(&json_path, serde_json::to_vec_pretty(&manifest)?)?;
+
+    Ok(build_id)
+}
+
+fn chrono_compat_now() -> String {
+    // Формируем ISO-подобную временную метку без сторонних крейтов
+    let now = std::time::SystemTime::now();
+    let secs = now.duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0);
+    format!("{secs}")
 }
