@@ -19,13 +19,7 @@ fn kv_item(label: &str, value: String) -> KeyValueItem {
 
 fn load_skin_image() -> slint::Image {
     if let Ok(img) = image::open(paths::skin_file()) {
-        let rgba = img.to_rgba8();
-        let buf = SharedPixelBuffer::<Rgba8Pixel>::clone_from_slice(
-            rgba.as_raw(),
-            rgba.width(),
-            rgba.height(),
-        );
-        return slint::Image::from_rgba8(buf);
+        return crate::skin_view::render_preview(&img);
     }
     slint::Image::default()
 }
