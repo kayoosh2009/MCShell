@@ -3,7 +3,7 @@ use std::rc::Rc;
 use std::time::Duration;
 
 use anyhow::Result;
-use slint::{ComponentHandle, ModelRc, Rgba8Pixel, SharedPixelBuffer, SharedString, Timer, TimerMode, VecModel};
+use slint::{ComponentHandle, ModelRc, SharedString, Timer, TimerMode, VecModel};
 
 use crate::app::{App, Tab};
 use crate::{paths, window};
@@ -372,11 +372,6 @@ pub fn run() -> Result<()> {
     win.run()?;
     Ok(())
 }
-
-    if let Some(r) = &app.crash {
-        draw_crash(f, r);
-        return;
-    }
     if let Some((start, _)) = &app.browse_launch {
         draw_browse_splash(f, start.elapsed().as_secs());
         return;
