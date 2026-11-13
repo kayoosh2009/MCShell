@@ -33,9 +33,9 @@ component NavButton inherits Rectangle {
 
     height: 36px;
     border-radius: 6px;
-    background: active ? #1f3a2b : (touch.has-hover ? #1e242e : transparent);
-    border-width: active ? 1px : 0px;
-    border-color: #22c55e;
+    background: active ? #ffffff : (touch.has-hover ? #ffffff18 : transparent);
+    border-width: active ? 0px : 1px;
+    border-color: touch.has-hover ? #ffffff25 : transparent;
 
     touch := TouchArea {
         clicked => { root.clicked(); }
@@ -43,7 +43,7 @@ component NavButton inherits Rectangle {
 
     Text {
         text: label;
-        color: active ? #4ade80 : #c9d1d9;
+        color: active ? #0d1011 : #e5e7eb;
         font-size: 13px;
         font-weight: active ? 700 : 500;
         x: 12px;
@@ -61,10 +61,10 @@ component ActionButton inherits Rectangle {
     min-width: 80px;
     border-radius: 6px;
     background: danger ? (touch.has-hover ? #7f1d1d : #450a0a)
-              : primary ? (touch.has-hover ? #16a34a : #22c55e)
-              : (touch.has-hover ? #28303d : #1e242e);
+              : primary ? (touch.has-hover ? #e5e7eb : #ffffff)
+              : (touch.has-hover ? #ffffff22 : #ffffff12);
     border-width: 1px;
-    border-color: danger ? #ef4444 : (primary ? #22c55e : #30363d);
+    border-color: danger ? #ef4444 : (primary ? #ffffff : #ffffff28);
 
     touch := TouchArea {
         clicked => { root.clicked(); }
@@ -75,7 +75,7 @@ component ActionButton inherits Rectangle {
         padding-right: 12px;
         Text {
             text: label;
-            color: primary ? #07130b : (danger ? #fca5a5 : #e6edf3);
+            color: primary ? #0d1011 : (danger ? #fca5a5 : #ffffff);
             font-size: 12px;
             font-weight: 600;
             horizontal-alignment: center;
@@ -137,8 +137,9 @@ export component MainWindow inherits Window {
     preferred-height: 620px;
     min-width: 780px;
     min-height: 500px;
-    background: #0d1117;
+    background: #0d1011;
 
+    in property <image> bg-image;
     in-out property <int> active-tab: 0;
     in-out property <int> more-page: 0;
     in property <string> status: "Ready";
@@ -208,106 +209,114 @@ export component MainWindow inherits Window {
     callback open-logs-folder();
     callback open-crash-file();
 
+    // Фоновое фото + затемнение
+    Image {
+        source: root.bg-image;
+        image-fit: cover;
+        width: 100%;
+        height: 100%;
+    }
+    Rectangle {
+        background: #0d1011b8;
+        width: 100%;
+        height: 100%;
+    }
+
     HorizontalLayout {
         // Main content area
         Rectangle {
             horizontal-stretch: 1;
-            background: #0d1117;
+            background: transparent;
 
             VerticalLayout {
                 padding: 18px;
                 spacing: 14px;
                 alignment: start;
 
-                    // 0: Profile
-                    if active-tab == 0 : VerticalLayout {
-                        spacing: 14px;
-                        Text { text: "Profile"; color: #e6edf3; font-size: 20px; font-weight: 700; }
+                // 0: Profile
+                if active-tab == 0 : VerticalLayout {
+                    spacing: 14px;
+                    Text { text: "Profile"; color: #ffffff; font-size: 20px; font-weight: 700; }
+
+                    Rectangle {
+                        background: #0d1011cc;
+                        border-radius: 8px;
+                        border-width: 1px;
+                        border-color: #ffffff20;
+                        VerticalLayout {
+                            padding: 14px;
+                            spacing: 10px;
+                            HorizontalLayout {
+                                spacing: 10px;
+                                Text { text: "Username:"; color: #9ca3af; width: 90px; vertical-alignment: center; }
+                                name-input := LineEdit {
+                                    text: root.username;
+                                    horizontal-stretch: 1;
+                                    accepted(t) => { root.save-username(t); }
+                                }
+                                ActionButton {
+                                    label: "Save";
+                                    primary: true;
+                                    clicked => { root.save-username(name-input.text); }
+                                }
+                            }
+                            HorizontalLayout {
+                                spacing: 10px;
+                                Text { text: "Offline UUID:"; color: #9ca3af; width: 90px; }
+                                Text { text: root.uuid; color: #ffffff; font-size: 12px; }
+                            }
+                        }
+                    }
+
+                    HorizontalLayout {
+                        spacing: 12px;
 
                         Rectangle {
-                            background: #161b22;
+                            background: #0d1011cc;
                             border-radius: 8px;
                             border-width: 1px;
-                            border-color: #21262d;
+                            border-color: #ffffff20;
+                            horizontal-stretch: 1;
                             VerticalLayout {
                                 padding: 14px;
-                                spacing: 10px;
-                                HorizontalLayout {
-                                    spacing: 10px;
-                                    Text { text: "Username:"; color: #8b949e; width: 90px; vertical-alignment: center; }
-                                    name-input := LineEdit {
-                                        text: root.username;
-                                        horizontal-stretch: 1;
-                                        accepted(t) => { root.save-username(t); }
-                                    }
-                                    ActionButton {
-                                        label: "Save";
-                                        primary: true;
-                                        clicked => { root.save-username(name-input.text); }
-                                    }
-                                }
-                                HorizontalLayout {
-                                    spacing: 10px;
-                                    Text { text: "Offline UUID:"; color: #8b949e; width: 90px; }
-                                    Text { text: root.uuid; color: #c9d1d9; font-size: 12px; }
+                                spacing: 8px;
+                                alignment: start;
+                                Text { text: "Playing"; color: #ffffff; font-size: 14px; font-weight: 700; }
+                                for item in playing-stats : HorizontalLayout {
+                                    Text { text: item.label; color: #9ca3af; width: 110px; font-size: 12px; }
+                                    Text { text: item.value; color: #ffffff; font-size: 12px; }
                                 }
                             }
                         }
 
-                        HorizontalLayout {
-                            spacing: 12px;
-
-                            Rectangle {
-                                background: #161b22;
-                                border-radius: 8px;
-                                border-width: 1px;
-                                border-color: #21262d;
-                                horizontal-stretch: 1;
-                                VerticalLayout {
-                                    padding: 14px;
-                                    spacing: 8px;
-                                    alignment: start;
-                                    Text { text: "Playing"; color: #4ade80; font-size: 14px; font-weight: 700; }
-                                    for item in playing-stats : HorizontalLayout {
-                                        Text { text: item.label; color: #8b949e; width: 110px; font-size: 12px; }
-                                        Text { text: item.value; color: #e6edf3; font-size: 12px; }
-                                    }
-                                }
-                            }
-
-                            Rectangle {
-                                background: #161b22;
-                                border-radius: 8px;
-                                border-width: 1px;
-                                border-color: #21262d;
-                                horizontal-stretch: 1;
-                                VerticalLayout {
-                                    padding: 14px;
-                                    spacing: 8px;
-                                    alignment: start;
-                                    Text { text: "Storage"; color: #4ade80; font-size: 14px; font-weight: 700; }
-                                    for item in storage-stats : HorizontalLayout {
-                                        Text { text: item.label; color: #8b949e; width: 110px; font-size: 12px; }
-                                        Text { text: item.value; color: #e6edf3; font-size: 12px; }
-                                    }
+                        Rectangle {
+                            background: #0d1011cc;
+                            border-radius: 8px;
+                            border-width: 1px;
+                            border-color: #ffffff20;
+                            horizontal-stretch: 1;
+                            VerticalLayout {
+                                padding: 14px;
+                                spacing: 8px;
+                                alignment: start;
+                                Text { text: "Storage"; color: #ffffff; font-size: 14px; font-weight: 700; }
+                                for item in storage-stats : HorizontalLayout {
+                                    Text { text: item.label; color: #9ca3af; width: 110px; font-size: 12px; }
+                                    Text { text: item.value; color: #ffffff; font-size: 12px; }
                                 }
                             }
                         }
                     }
-
-                    
-
-                    
-
-                    }
+                }
+            }
         }
 
         // Right Sidebar
         Rectangle {
             width: 160px;
-            background: #161b22;
+            background: #0d1011cc;
             border-width: 1px;
-            border-color: #21262d;
+            border-color: #ffffff1a;
 
             VerticalLayout {
                 padding: 12px;
