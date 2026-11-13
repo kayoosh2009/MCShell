@@ -62,6 +62,11 @@ fn sync_ui(win: &MainWindow, app: &App) {
 
     let installed: Vec<SharedString> = app.installed.iter().map(SharedString::from).collect();
     win.set_installed_versions(ModelRc::from(Rc::new(VecModel::from(installed))));
+    if win.get_selected_version().is_empty() {
+        if let Some(first) = app.installed.first() {
+            win.set_selected_version(SharedString::from(first.as_str()));
+        }
+    }
 
     let remote: Vec<VersionItem> = app
         .remote_versions
@@ -253,7 +258,11 @@ pub fn run() -> Result<()> {
         let weak = win.as_weak();
         win.on_launch_version(move |id| {
             let mut a = app.borrow_mut();
-            a.launch_version(id.to_string());
+            if id.trim().is_empty() {
+                a.status = "no version selected".to_string();
+            } else {
+                a.launch_version(id.to_string());
+            }
             if let Some(w) = weak.upgrade() {
                 sync_ui(&w, &a);
             }
