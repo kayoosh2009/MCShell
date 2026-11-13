@@ -1,5 +1,3 @@
-#![allow(dead_code)]
-
 mod app;
 mod fabric;
 mod launcher;

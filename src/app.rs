@@ -1,5 +1,5 @@
 use std::io;
-use std::sync::mpsc::{Receiver, TryRecvError};
+use std::sync::mpsc::{self, Receiver, TryRecvError};
 use std::time::{Duration, Instant};
 
 use anyhow::Result;
@@ -10,23 +10,33 @@ use ratatui::backend::CrosstermBackend;
 use ratatui::Terminal;
 
 use crate::profile::Profile;
-use crate::{browse, launcher, mods, packs, paths, ui, versions, window};
+use crate::{browse, fabric, launcher, mods, packs, paths, skin, ui, versions, window, worlds};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum Tab {
     Profile,
+    Versions,
+    Mods,
+    Textures,
+    Skins,
+    Worlds,
     Launch,
-    Faq,
+    More,
 }
 
 impl Tab {
-    pub const ALL: [Tab; 3] = [Tab::Profile, Tab::Launch, Tab::Faq];
+    pub const ALL: [Tab; 8] = [Tab::Profile, Tab::Versions, Tab::Mods, Tab::Textures, Tab::Skins, Tab::Worlds, Tab::Launch, Tab::More];
 
     pub fn title(&self) -> &'static str {
         match self {
             Tab::Profile => "Profile",
+            Tab::Versions => "Versions",
+            Tab::Mods => "Mods",
+            Tab::Textures => "Textures",
+            Tab::Skins => "Skins",
+            Tab::Worlds => "Worlds",
             Tab::Launch => "Launch",
-            Tab::Faq => "FAQ",
+            Tab::More => "More",
         }
     }
 
@@ -38,11 +48,14 @@ impl Tab {
 pub enum InputMode {
     Normal,
     EditingUsername,
+    EditingVersion,
     ConfirmDelete,
 }
 
 pub enum DeleteTarget {
     Version(String),
+    Mod(mods::ModEntry),
+    Pack(String),
 }
 
 pub struct App {
@@ -53,15 +66,21 @@ pub struct App {
     pub profile: Profile,
     pub input_mode: InputMode,
     pub input_buffer: String,
+    pub has_skin: bool,
     pub installed: Vec<String>,
+    pub remote_versions: Vec<versions::VersionEntry>,
     pub list_index: usize,
+    pub last_vanilla: Option<String>,
     pub mods: Vec<mods::ModEntry>,
     pub packs: Vec<String>,
+    pub worlds: Vec<String>,
     pub browse_launch: Option<(Instant, String)>,
     browse: Option<browse::BrowseServer>,
     pending_delete: Option<DeleteTarget>,
     pub hide_after_launch: bool,
     pub show_logs_separate: bool,
+    pub discord_on: bool,
+    pub more_page: usize,
     pub crash: Option<crate::logs::Report>,
     pending_launch: Option<String>,
     progress_rx: Option<Receiver<String>>,
@@ -78,19 +97,70 @@ impl App {
             profile: Profile::load(),
             input_mode: InputMode::Normal,
             input_buffer: String::new(),
+            has_skin: skin::has_skin(),
             installed: versions::installed_versions(),
+            remote_versions: Vec::new(),
             list_index: 0,
+            last_vanilla: None,
             mods: mods::list(),
             packs: packs::list(),
+            worlds: worlds::list(),
             browse_launch: None,
             browse: None,
             pending_delete: None,
             hide_after_launch: st.hide_after_launch,
             show_logs_separate: st.show_logs_separate,
+            discord_on: st.discord,
+            more_page: 0,
             crash: None,
             pending_launch: None,
             progress_rx: None,
         }
+    }
+
+    fn save_settings(&self) {
+        crate::settings::save(&crate::settings::Settings {
+            discord: self.discord_on,
+            hide_after_launch: self.hide_after_launch,
+            show_logs_separate: self.show_logs_separate,
+        });
+    }
+
+    fn toggle_setting(&mut self, i: usize) {
+        match i {
+            0 => {
+                self.discord_on = !self.discord_on;
+                if self.discord_on {
+                    crate::discord::init();
+                } else {
+                    crate::discord::shutdown();
+                }
+            }
+            1 => self.hide_after_launch = !self.hide_after_launch,
+            _ => self.show_logs_separate = !self.show_logs_separate,
+        }
+        self.save_settings();
+    }
+
+    fn more_len(&self) -> usize {
+        match self.more_page {
+            0 => 3,
+            1 => crate::java::JAVAS.len(),
+            _ => 0,
+        }
+    }
+
+    fn spawn_java_install(&mut self, major: u32) {
+        self.progress_log.clear();
+        let (tx, rx) = mpsc::channel();
+        self.progress_rx = Some(rx);
+        self.status = format!("installing java {major}...");
+        std::thread::spawn(move || {
+            let progress = |msg: String| { let _ = tx.send(msg); };
+            if let Err(e) = crate::java::install(major, &progress) {
+                let _ = tx.send(format!("error: {e}"));
+            }
+        });
     }
 
     fn next_tab(&mut self) {
@@ -108,6 +178,43 @@ impl App {
 
     fn on_tab_change(&mut self) {
         self.list_index = 0;
+        self.mods = mods::list();
+        self.packs = packs::list();
+        self.worlds = worlds::list();
+    }
+
+    fn spawn_version_install(&mut self, id: String) {
+        self.progress_log.clear();
+        let (tx, rx) = mpsc::channel();
+        self.progress_rx = Some(rx);
+        self.status = format!("installing {id}...");
+        std::thread::spawn(move || {
+            let progress = |msg: String| { let _ = tx.send(msg); };
+            if let Err(e) = versions::install_version(&id, &progress) {
+                let _ = tx.send(format!("error: {e}"));
+            }
+        });
+    }
+
+    fn spawn_fabric_install(&mut self, mc_version: String) {
+        self.progress_log.clear();
+        let (tx, rx) = mpsc::channel();
+        self.progress_rx = Some(rx);
+        self.status = format!("installing fabric for {mc_version}...");
+        std::thread::spawn(move || {
+            let progress = |msg: String| { let _ = tx.send(msg); };
+            match fabric::fetch_loader_versions(&mc_version) {
+                Ok(loaders) => match loaders.first() {
+                    Some(loader) => {
+                        if let Err(e) = fabric::install_fabric(&mc_version, loader, &progress) {
+                            let _ = tx.send(format!("error: {e}"));
+                        }
+                    }
+                    None => { let _ = tx.send("no fabric loader found".to_string()); }
+                },
+                Err(e) => { let _ = tx.send(format!("error: {e}")); }
+            }
+        });
     }
 
     fn poll_progress(&mut self) {
@@ -156,6 +263,26 @@ impl App {
                 }
                 Err(e) => self.status = format!("delete error: {e}"),
             },
+            DeleteTarget::Mod(m) => {
+                self.status = match mods::remove(&m) {
+                    Ok(()) => format!("removed {}", m.name),
+                    Err(e) => format!("remove error: {e}"),
+                };
+                self.mods = mods::list();
+                if self.list_index >= self.mods.len() && self.list_index > 0 {
+                    self.list_index -= 1;
+                }
+            }
+            DeleteTarget::Pack(name) => {
+                self.status = match packs::remove(&name) {
+                    Ok(()) => format!("removed {name}"),
+                    Err(e) => format!("remove error: {e}"),
+                };
+                self.packs = packs::list();
+                if self.list_index >= self.packs.len() && self.list_index > 0 {
+                    self.list_index -= 1;
+                }
+            }
         }
     }
 
@@ -169,8 +296,9 @@ impl App {
                 }
             }
         }
+        let kind = if self.current_tab == Tab::Textures { "resourcepack" } else { "mod" };
         if let Some(s) = &self.browse {
-            self.browse_launch = Some((Instant::now(), s.url("dashboard")));
+            self.browse_launch = Some((Instant::now(), s.url(kind)));
         }
     }
 
@@ -235,12 +363,40 @@ impl App {
                     self.input_mode = InputMode::EditingUsername;
                     self.input_buffer = self.profile.username.clone();
                 }
-                KeyCode::Enter | KeyCode::Char(' ') if self.current_tab == Tab::Profile => {
-                    self.start_browse();
+                KeyCode::Char('i') if self.current_tab == Tab::Versions => {
+                    self.input_mode = InputMode::EditingVersion;
+                    self.input_buffer = String::new();
+                }
+                KeyCode::Char('r') if self.current_tab == Tab::Versions => match versions::fetch_manifest() {
+                    Ok(list) => {
+                        self.status = format!("fetched {} versions", list.len());
+                        self.remote_versions = list;
+                        self.list_index = 0;
+                    }
+                    Err(e) => self.status = format!("fetch error: {e}"),
+                },
+                KeyCode::Char('f') if self.current_tab == Tab::Versions => {
+                    match self.last_vanilla.clone() {
+                        Some(mc) => self.spawn_fabric_install(mc),
+                        None => self.status = "install a vanilla version first".to_string(),
+                    }
                 }
                 KeyCode::Char('d') | KeyCode::Delete if self.current_tab == Tab::Launch && !self.installed.is_empty() => {
                     let id = self.installed[self.list_index].clone();
                     self.ask_delete(DeleteTarget::Version(id.clone()), &id);
+                }
+                KeyCode::Down if self.current_tab == Tab::Versions && !self.remote_versions.is_empty() => {
+                    self.list_index = (self.list_index + 1) % self.remote_versions.len();
+                }
+                KeyCode::Up if self.current_tab == Tab::Versions && !self.remote_versions.is_empty() => {
+                    self.list_index = (self.list_index + self.remote_versions.len() - 1) % self.remote_versions.len();
+                }
+                KeyCode::Enter if self.current_tab == Tab::Versions => {
+                    if let Some(v) = self.remote_versions.get(self.list_index) {
+                        let id = v.id.clone();
+                        self.last_vanilla = Some(id.clone());
+                        self.spawn_version_install(id);
+                    }
                 }
                 KeyCode::Down if self.current_tab == Tab::Launch && !self.installed.is_empty() => {
                     self.list_index = (self.list_index + 1) % self.installed.len();
@@ -248,12 +404,96 @@ impl App {
                 KeyCode::Up if self.current_tab == Tab::Launch && !self.installed.is_empty() => {
                     self.list_index = (self.list_index + self.installed.len() - 1) % self.installed.len();
                 }
+                KeyCode::Char('1') if self.current_tab == Tab::Launch => self.toggle_setting(1),
+                KeyCode::Char('2') if self.current_tab == Tab::Launch => self.toggle_setting(2),
                 KeyCode::Enter if self.current_tab == Tab::Launch => {
                     if let Some(id) = self.installed.get(self.list_index).cloned() {
                         self.pending_launch = Some(id);
                     }
                 }
-                KeyCode::Char(c @ ('g' | 'm' | 'd' | 't')) if self.current_tab == Tab::Faq => {
+                KeyCode::Down if self.current_tab == Tab::Mods && !self.mods.is_empty() => {
+                    self.list_index = (self.list_index + 1) % self.mods.len();
+                }
+                KeyCode::Up if self.current_tab == Tab::Mods && !self.mods.is_empty() => {
+                    self.list_index = (self.list_index + self.mods.len() - 1) % self.mods.len();
+                }
+                KeyCode::Char(' ') if self.current_tab == Tab::Mods => {
+                    if let Some(m) = self.mods.get(self.list_index).cloned() {
+                        self.status = match mods::toggle(&m) {
+                            Ok(()) => format!("toggled {}", m.name),
+                            Err(e) => format!("toggle error: {e}"),
+                        };
+                        self.mods = mods::list();
+                    }
+                }
+                KeyCode::Char('d') | KeyCode::Delete if self.current_tab == Tab::Mods => {
+                    if let Some(m) = self.mods.get(self.list_index).cloned() {
+                        let label = m.name.clone();
+                        self.ask_delete(DeleteTarget::Mod(m), &label);
+                    }
+                }
+                KeyCode::Char('o') if self.current_tab == Tab::Mods => {
+                    window::open_folder(&paths::mods_dir());
+                }
+                KeyCode::Char('b') if matches!(self.current_tab, Tab::Mods | Tab::Textures) => {
+                    self.start_browse();
+                }
+                KeyCode::Down if self.current_tab == Tab::Worlds && !self.worlds.is_empty() => {
+                    self.list_index = (self.list_index + 1) % self.worlds.len();
+                }
+                KeyCode::Up if self.current_tab == Tab::Worlds && !self.worlds.is_empty() => {
+                    self.list_index = (self.list_index + self.worlds.len() - 1) % self.worlds.len();
+                }
+                KeyCode::Char('e') if self.current_tab == Tab::Worlds => {
+                    if let Some(name) = self.worlds.get(self.list_index).cloned() {
+                        self.status = match worlds::export(&name) {
+                            Ok(p) => format!("exported to {}", p.display()),
+                            Err(e) => format!("export error: {e}"),
+                        };
+                    }
+                }
+                KeyCode::Char('o') if self.current_tab == Tab::Worlds => {
+                    window::open_folder(&paths::saves_dir());
+                }
+                KeyCode::Down if self.current_tab == Tab::Textures && !self.packs.is_empty() => {
+                    self.list_index = (self.list_index + 1) % self.packs.len();
+                }
+                KeyCode::Up if self.current_tab == Tab::Textures && !self.packs.is_empty() => {
+                    self.list_index = (self.list_index + self.packs.len() - 1) % self.packs.len();
+                }
+                KeyCode::Char('d') | KeyCode::Delete if self.current_tab == Tab::Textures => {
+                    if let Some(name) = self.packs.get(self.list_index).cloned() {
+                        self.ask_delete(DeleteTarget::Pack(name.clone()), &name);
+                    }
+                }
+                KeyCode::Char('o') if self.current_tab == Tab::Textures => {
+                    window::open_folder(&paths::packs_dir());
+                }
+                KeyCode::Char(c @ '1'..='3') if self.current_tab == Tab::More => {
+                    self.more_page = c as usize - '1' as usize;
+                    self.list_index = 0;
+                }
+                KeyCode::Down if self.current_tab == Tab::More && self.more_len() > 0 => {
+                    self.list_index = (self.list_index + 1) % self.more_len();
+                }
+                KeyCode::Up if self.current_tab == Tab::More && self.more_len() > 0 => {
+                    self.list_index = (self.list_index + self.more_len() - 1) % self.more_len();
+                }
+                KeyCode::Enter | KeyCode::Char(' ') if self.current_tab == Tab::More && self.more_page == 0 => {
+                    self.toggle_setting(self.list_index);
+                }
+                KeyCode::Enter if self.current_tab == Tab::More && self.more_page == 1 => {
+                    let major = crate::java::JAVAS[self.list_index].0;
+                    self.spawn_java_install(major);
+                }
+                KeyCode::Char('d') | KeyCode::Delete if self.current_tab == Tab::More && self.more_page == 1 => {
+                    let major = crate::java::JAVAS[self.list_index].0;
+                    self.status = match crate::java::remove(major) {
+                        Ok(()) => format!("java {major} removed"),
+                        Err(e) => format!("remove error: {e}"),
+                    };
+                }
+                KeyCode::Char(c @ ('g' | 'm' | 'd' | 't')) if self.current_tab == Tab::More && self.more_page == 2 => {
                     use crate::settings::{DISCORD, EMAIL, GITHUB, TELEGRAM};
                     match c {
                         'g' => window::open_url(GITHUB),
@@ -278,6 +518,20 @@ impl App {
                 KeyCode::Char(c) => self.input_buffer.push(c),
                 _ => {}
             },
+            InputMode::EditingVersion => match code {
+                KeyCode::Enter => {
+                    let id = self.input_buffer.trim().to_string();
+                    if !id.is_empty() {
+                        self.last_vanilla = Some(id.clone());
+                        self.spawn_version_install(id);
+                    }
+                    self.input_mode = InputMode::Normal;
+                }
+                KeyCode::Esc => self.input_mode = InputMode::Normal,
+                KeyCode::Backspace => { self.input_buffer.pop(); }
+                KeyCode::Char(c) => self.input_buffer.push(c),
+                _ => {}
+            },
             InputMode::ConfirmDelete => match code {
                 KeyCode::Char('y') | KeyCode::Char('Y') => self.confirm_delete(),
                 _ => {
@@ -289,8 +543,39 @@ impl App {
         }
     }
 
-    fn handle_paste(&mut self, _text: String) {
-        // Управление модами, текстурами и скинами переносится в Web UI
+    fn handle_paste(&mut self, text: String) {
+        let path = paths::clean_path(&text);
+        match self.current_tab {
+            Tab::Skins => match skin::set_skin(&path) {
+                Ok(dest) => {
+                    self.has_skin = true;
+                    self.status = format!("skin saved: {}", dest.display());
+                }
+                Err(e) => self.status = format!("skin error: {e}"),
+            },
+            Tab::Mods => {
+                self.status = match mods::add(&path) {
+                    Ok(name) => format!("added {name}"),
+                    Err(e) => format!("add error: {e}"),
+                };
+                self.mods = mods::list();
+            }
+            Tab::Textures => {
+                self.status = match packs::add(&path) {
+                    Ok(name) => format!("added {name}"),
+                    Err(e) => format!("add error: {e}"),
+                };
+                self.packs = packs::list();
+            }
+            Tab::Worlds => {
+                self.status = match worlds::import(&path) {
+                    Ok(name) => format!("imported world {name}"),
+                    Err(e) => format!("import error: {e}"),
+                };
+                self.worlds = worlds::list();
+            }
+            _ => {}
+        }
     }
 }
 
@@ -311,7 +596,7 @@ pub fn run(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>) -> Result<()> 
                     // В режимах редактирования (имя, версия) оставляем как есть, 
                     // чтобы пользователь мог нормально печатать кириллицей.
                     let code = match key.code {
-                        KeyCode::Char(c) if !matches!(app.input_mode, InputMode::EditingUsername) => {
+                        KeyCode::Char(c) if !matches!(app.input_mode, InputMode::EditingUsername | InputMode::EditingVersion) => {
                             KeyCode::Char(crate::keymap::to_latin(c))
                         }
                         other => other,

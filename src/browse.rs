@@ -2,28 +2,19 @@ use std::collections::HashMap;
 use std::fs::File;
 use std::io::{Read, Write};
 use std::net::{TcpListener, TcpStream};
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{self, Receiver, Sender};
 use std::sync::{Arc, Mutex};
-
-pub static SHOULD_CLOSE: AtomicBool = AtomicBool::new(false);
 
 use anyhow::{anyhow, bail, Result};
 use serde_json::{json, Value};
 
-use crate::profile::Profile;
-use crate::stats::{fmt_ago, fmt_bytes, fmt_duration};
-use crate::{fabric, paths, settings, skin, stats, versions};
+use crate::{paths, versions};
 
 const API: &str = "https://api.modrinth.com/v2";
 const USER_AGENT: &str = "MCShell/0.1.0 (github.com/kayoosh2009/MCShell)";
 const INDEX_HTML: &str = include_str!("web/index.html");
 const STYLE_CSS: &str = include_str!("web/style.css");
 const SCRIPT_JS: &str = include_str!("web/script.js");
-const ASCII_ART: &str = include_str!("web/elements/mcshell-acii.txt");
-const BG_ICON: &[u8] = include_bytes!("web/elements/background.png");
-const DEF_BG: &[u8] = include_bytes!("web/elements/def-backgroud.png");
-const DELETE_ICON: &[u8] = include_bytes!("web/elements/delete.png");
 
 struct State {
     token: String,
@@ -176,9 +167,6 @@ fn handle(mut stream: TcpStream, state: &Arc<State>) -> Result<()> {
         ("GET", "/") => return respond(&mut stream, 403, "text/plain", b"forbidden"),
         ("GET", "/style.css") => return respond(&mut stream, 200, "text/css", STYLE_CSS.as_bytes()),
         ("GET", "/script.js") => return respond(&mut stream, 200, "text/javascript", SCRIPT_JS.as_bytes()),
-        ("GET", "/elements/background.png") => return respond(&mut stream, 200, "image/png", BG_ICON),
-        ("GET", "/elements/def-backgroud.png") => return respond(&mut stream, 200, "image/png", DEF_BG),
-        ("GET", "/elements/delete.png") => return respond(&mut stream, 200, "image/png", DELETE_ICON),
         _ => {}
     }
 
@@ -187,132 +175,9 @@ fn handle(mut stream: TcpStream, state: &Arc<State>) -> Result<()> {
     }
 
     match (method, path) {
-        ("GET", "/api/art") => {
-            json_response(&mut stream, 200, &json!({ "art": ASCII_ART }))
-        }
-        ("GET", "/api/background") => {
-            let bg_path = paths::data_dir().join("background.png");
-            if bg_path.is_file() {
-                if let Ok(bytes) = std::fs::read(bg_path) {
-                    return respond(&mut stream, 200, "image/png", &bytes);
-                }
-            }
-            respond(&mut stream, 404, "text/plain", b"no background")
-        }
-        ("POST", "/api/background") => {
-            let body_bytes = req
-                .as_bytes()
-                .windows(4)
-                .position(|w| w == b"\r\n\r\n")
-                .map(|pos| &buf[pos + 4..n])
-                .unwrap_or(&[]);
-
-            let _ = std::fs::create_dir_all(paths::data_dir());
-            let bg_path = paths::data_dir().join("background.png");
-            match std::fs::write(bg_path, body_bytes) {
-                Ok(()) => {
-                    let _ = state.tx.lock().unwrap().send("background updated".to_string());
-                    json_response(&mut stream, 200, &json!({ "ok": true }))
-                }
-                Err(e) => json_response(&mut stream, 500, &json!({ "ok": false, "error": e.to_string() })),
-            }
-        }
-        ("GET", "/api/profile") => {
-            let p = Profile::load();
-            let s = stats::snapshot();
-            json_response(&mut stream, 200, &json!({
-                "username": p.username,
-                "uuid": p.offline_uuid(),
-                "has_skin": skin::has_skin(),
-                "stats": {
-                    "playtime": fmt_duration(s.total_secs),
-                    "launches": s.launches,
-                    "last_played": fmt_ago(s.last_played),
-                    "worlds": format!("{} ({})", s.worlds, fmt_bytes(s.worlds_bytes)),
-                    "mods": format!("{} ({})", s.mods, fmt_bytes(s.mods_bytes)),
-                    "packs": format!("{} ({})", s.packs, fmt_bytes(s.packs_bytes))
-                }
-            }))
-        }
-        ("POST", "/api/profile") => {
-            let body_str = req
-                .split_once("\r\n\r\n")
-                .map(|(_, b)| b)
-                .or_else(|| req.split_once("\n\n").map(|(_, b)| b))
-                .unwrap_or("");
-
-            if let Ok(v) = serde_json::from_str::<Value>(body_str.trim()) {
-                if let Some(username) = v.get("username").and_then(|u| u.as_str()) {
-                    let mut p = Profile::load();
-                    p.set_username(username.to_string());
-                    let _ = state.tx.lock().unwrap().send(format!("username updated: {username}"));
-                    return json_response(&mut stream, 200, &json!({ "ok": true }));
-                }
-            }
-            json_response(&mut stream, 400, &json!({ "ok": false, "error": "invalid username" }))
-        }
-        ("GET", "/api/skin") => {
-            if skin::has_skin() {
-                if let Ok(bytes) = std::fs::read(paths::skin_file()) {
-                    return respond(&mut stream, 200, "image/png", &bytes);
-                }
-            }
-            respond(&mut stream, 404, "text/plain", b"skin not found")
-        }
-        ("POST", "/api/skin") => {
-            let body_bytes = req
-                .as_bytes()
-                .windows(4)
-                .position(|w| w == b"\r\n\r\n")
-                .map(|pos| &buf[pos + 4..n])
-                .unwrap_or(&[]);
-
-            let skin_dest = paths::skin_file();
-            if let Some(parent) = skin_dest.parent() {
-                let _ = std::fs::create_dir_all(parent);
-            }
-            match std::fs::write(&skin_dest, body_bytes) {
-                Ok(()) => {
-                    let _ = state.tx.lock().unwrap().send("skin updated and saved to game folder".to_string());
-                    json_response(&mut stream, 200, &json!({ "ok": true }))
-                }
-                Err(e) => json_response(&mut stream, 500, &json!({ "ok": false, "error": e.to_string() })),
-            }
-        }
         ("GET", "/api/info") => {
             let ctx = detect_context();
             json_response(&mut stream, 200, &json!({ "version": ctx.mc_version, "loader": ctx.loader }))
-        }
-        ("GET", "/api/status") => {
-            json_response(&mut stream, 200, &json!({ "should_close": SHOULD_CLOSE.load(Ordering::Relaxed) }))
-        }
-        ("POST", "/api/favorites/toggle") => {
-            let id = q.get("id").cloned().unwrap_or_default();
-            if !id.is_empty() {
-                let updated = versions::toggle_favorite(&id);
-                let _ = state.tx.lock().unwrap().send(format!("toggled favorite: {id}"));
-                json_response(&mut stream, 200, &json!({ "ok": true, "favorites": updated }))
-            } else {
-                json_response(&mut stream, 400, &json!({ "ok": false, "error": "missing id" }))
-            }
-        }
-        ("GET", "/api/build/assets") => {
-            json_response(&mut stream, 200, &scan_local_assets())
-        }
-        ("POST", "/api/build/create") => {
-            let body_str = req
-                .split_once("\r\n\r\n")
-                .map(|(_, b)| b)
-                .or_else(|| req.split_once("\n\n").map(|(_, b)| b))
-                .unwrap_or("");
-
-            match create_custom_build(body_str) {
-                Ok(build_id) => {
-                    let _ = state.tx.lock().unwrap().send(format!("created modpack: {build_id}"));
-                    json_response(&mut stream, 200, &json!({ "ok": true, "id": build_id }))
-                }
-                Err(e) => json_response(&mut stream, 400, &json!({ "ok": false, "error": e.to_string() })),
-            }
         }
         ("GET", "/api/targets") => json_response(&mut stream, 200, &json!(list_targets())),
         ("GET", "/api/installed") => {
@@ -333,68 +198,7 @@ fn handle(mut stream: TcpStream, state: &Arc<State>) -> Result<()> {
             Ok(v) => json_response(&mut stream, 200, &v),
             Err(e) => json_response(&mut stream, 500, &json!({ "error": e.to_string() })),
         },
-        ("GET", "/api/settings") => {
-            let current = settings::load();
-            match serde_json::to_value(&current) {
-                Ok(v) => json_response(&mut stream, 200, &v),
-                Err(e) => json_response(&mut stream, 500, &json!({ "error": e.to_string() })),
-            }
-        }
-        ("POST", "/api/settings") => {
-            let body_str = req
-                .split_once("\r\n\r\n")
-                .map(|(_, b)| b)
-                .or_else(|| req.split_once("\n\n").map(|(_, b)| b))
-                .unwrap_or("");
-
-            match serde_json::from_str::<settings::Settings>(body_str.trim()) {
-                Ok(new_settings) => {
-                    settings::save(&new_settings);
-                    if new_settings.discord {
-                        crate::discord::init();
-                    } else {
-                        crate::discord::shutdown();
-                    }
-                    let _ = state.tx.lock().unwrap().send("settings saved from web".to_string());
-                    json_response(&mut stream, 200, &json!({ "ok": true }))
-                }
-                Err(e) => json_response(&mut stream, 400, &json!({ "ok": false, "error": e.to_string() })),
-            }
-        }
-        ("GET", "/api/progress") => {
-            let body = versions::get_progress_json();
-            respond(&mut stream, 200, "application/json", body.as_bytes())
-        }
-        ("POST", "/api/versions/delete") => {
-            let id = q.get("id").cloned().unwrap_or_default();
-            if !id.is_empty() {
-                let _ = versions::delete_version(&id);
-                let _ = state.tx.lock().unwrap().send(format!("deleted version: {id}"));
-                json_response(&mut stream, 200, &json!({ "ok": true }))
-            } else {
-                json_response(&mut stream, 400, &json!({ "ok": false, "error": "missing version id" }))
-            }
-        }
         ("POST", "/api/install") => {
-            // Если передан параметр `version` — скачиваем версию Minecraft или мод-лоадер в фоновом потоке
-            if let Some(ver) = q.get("version").cloned() {
-                let loader = q.get("loader").cloned().unwrap_or_else(|| "vanilla".to_string());
-                let tx = state.tx.lock().unwrap().clone();
-                std::thread::spawn(move || {
-                    let res = if loader == "fabric" || loader == "quilt" {
-                        fabric::install_loader(&loader, &ver, &|_| {})
-                    } else {
-                        versions::install_version(&ver, &|_| {}).map(|_| ver.clone())
-                    };
-
-                    if let Ok(installed_id) = res {
-                        let _ = tx.send(format!("installed {installed_id}"));
-                    }
-                });
-                return json_response(&mut stream, 200, &json!({ "ok": true, "started": true }));
-            }
-
-            // Иначе — скачивание мода / ресурс-пака с Modrinth
             let id = q.get("id").cloned().unwrap_or_default();
             let ctx = Context {
                 mc_version: q.get("mc").and_then(|m| safe(m)),
@@ -448,17 +252,15 @@ fn search(q: &HashMap<String, String>) -> Result<Value> {
 }
 
 fn list_targets() -> Vec<Value> {
-    let favs = versions::load_favorites();
     versions::installed_versions()
         .into_iter()
         .map(|id| {
-            let is_fav = favs.contains(&id);
             if let Some(rest) = id.strip_prefix("fabric-loader-") {
                 if let Some((_, mc)) = rest.split_once('-') {
-                    return json!({ "id": id, "mc": mc, "loader": "fabric", "label": format!("{mc} (fabric)"), "favorite": is_fav });
+                    return json!({ "id": id, "mc": mc, "loader": "fabric", "label": format!("{mc} (fabric)") });
                 }
             }
-            json!({ "id": id, "mc": id, "loader": Value::Null, "label": format!("{id} (vanilla)"), "favorite": is_fav })
+            json!({ "id": id, "mc": id, "loader": Value::Null, "label": format!("{id} (vanilla)") })
         })
         .collect()
 }
@@ -570,107 +372,4 @@ fn install(id: &str, kind: &str, ctx: &Context, seen: &mut Vec<String>, done: &m
         }
     }
     Ok(())
-}
-
-fn scan_local_assets() -> Value {
-    let mut mods_list = Vec::new();
-    let mods_dir = paths::mods_dir();
-
-    if let Ok(entries) = std::fs::read_dir(&mods_dir) {
-        for entry in entries.flatten() {
-            let path = entry.path();
-            if path.extension().and_then(|e| e.to_str()) == Some("jar") {
-                let filename = entry.file_name().to_string_lossy().to_string();
-                let mut game_version = String::new();
-                let mut mod_name = filename.clone();
-
-                // Пробуем быстро прочитать fabric.mod.json из zip-архива
-                if let Ok(file) = File::open(&path) {
-                    if let Ok(mut archive) = zip::ZipArchive::new(file) {
-                        if let Ok(mut mod_json_file) = archive.by_name("fabric.mod.json") {
-                            let mut content = String::new();
-                            if mod_json_file.read_to_string(&mut content).is_ok() {
-                                if let Ok(parsed) = serde_json::from_str::<Value>(&content) {
-                                    if let Some(name) = parsed["name"].as_str() {
-                                        mod_name = name.to_string();
-                                    }
-                                    if let Some(mc) = parsed["depends"]["minecraft"].as_str() {
-                                        game_version = mc.to_string();
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-
-                mods_list.push(json!({
-                    "file": filename,
-                    "name": mod_name,
-                    "game_version": game_version
-                }));
-            }
-        }
-    }
-
-    let mut packs_list = Vec::new();
-    let packs_dir = paths::packs_dir();
-    if let Ok(entries) = std::fs::read_dir(&packs_dir) {
-        for entry in entries.flatten() {
-            let filename = entry.file_name().to_string_lossy().to_string();
-            if filename.ends_with(".zip") || entry.path().is_dir() {
-                packs_list.push(json!({ "file": filename, "name": filename }));
-            }
-        }
-    }
-
-    json!({ "mods": mods_list, "packs": packs_list })
-}
-
-fn create_custom_build(payload: &str) -> Result<String> {
-    let data: Value = serde_json::from_str(payload)?;
-    let raw_name = data["name"].as_str().ok_or_else(|| anyhow!("missing build name"))?.trim();
-    let base_version = data["base_version"].as_str().ok_or_else(|| anyhow!("missing base version"))?;
-
-    // Безопасное имя папки сборки (латиница, цифры, дефисы)
-    let safe_id = raw_name
-        .chars()
-        .map(|c| if c.is_alphanumeric() || c == '-' || c == '_' { c } else { '-' })
-        .collect::<String>()
-        .trim_matches('-')
-        .to_lowercase();
-
-    if safe_id.is_empty() {
-        bail!("invalid modpack name");
-    }
-
-    let build_id = format!("build-{}", safe_id);
-    let target_dir = paths::versions_dir().join(&build_id);
-    std::fs::create_dir_all(&target_dir)?;
-
-    // Генерируем манифест версии, наследующий всю структуру (джарник, лоадер) от base_version
-    let manifest = json!({
-        "id": build_id,
-        "inheritsFrom": base_version,
-        "type": "custom",
-        "time": chrono_compat_now(),
-        "releaseTime": chrono_compat_now(),
-        "minecraftArguments": null,
-        "custom_profile": {
-            "name": raw_name,
-            "mods": data.get("mods").unwrap_or(&json!([])),
-            "packs": data.get("packs").unwrap_or(&json!([]))
-        }
-    });
-
-    let json_path = target_dir.join(format!("{build_id}.json"));
-    std::fs::write(&json_path, serde_json::to_vec_pretty(&manifest)?)?;
-
-    Ok(build_id)
-}
-
-fn chrono_compat_now() -> String {
-    // Формируем ISO-подобную временную метку без сторонних крейтов
-    let now = std::time::SystemTime::now();
-    let secs = now.duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0);
-    format!("{secs}")
 }
