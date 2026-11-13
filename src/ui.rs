@@ -25,7 +25,12 @@ fn load_skin_image() -> slint::Image {
 }
 
 fn load_bg_image() -> slint::Image {
-    let candidates = ["backgroud.png", "assets/backgroud.png", "background.png", "assets/background.png"];
+    let candidates = [
+        "ui/icons/backgroud.png",
+        "ui/icons/background.png",
+        "backgroud.png",
+        "background.png",
+    ];
     for path in candidates {
         if let Ok(img) = image::open(path) {
             let small = img.thumbnail(960, 620).to_rgba8();
