@@ -1,16 +1,8 @@
-use std::io;
 use std::sync::mpsc::{self, Receiver, TryRecvError};
 use std::time::{Duration, Instant};
 
-use anyhow::Result;
-use crossterm::event::{self, DisableBracketedPaste, EnableBracketedPaste, Event, KeyCode, KeyEventKind};
-use crossterm::execute;
-use crossterm::terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen};
-use ratatui::backend::CrosstermBackend;
-use ratatui::Terminal;
-
 use crate::profile::Profile;
-use crate::{browse, fabric, launcher, mods, packs, paths, skin, ui, versions, window, worlds};
+use crate::{browse, fabric, launcher, mods, packs, skin, versions, window, worlds};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum Tab {
@@ -126,7 +118,7 @@ impl App {
         });
     }
 
-    fn toggle_setting(&mut self, i: usize) {
+    pub fn toggle_setting(&mut self, i: usize) {
         match i {
             0 => {
                 self.discord_on = !self.discord_on;
