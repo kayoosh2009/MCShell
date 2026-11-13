@@ -1,0 +1,685 @@
+import { LineEdit, ScrollView } from "std-widgets.slint";
+
+export struct ModItem {
+    name: string,
+    enabled: bool,
+}
+
+export struct VersionItem {
+    id: string,
+    kind: string,
+}
+
+export struct JavaItem {
+    major: int,
+    installed: bool,
+    note: string,
+}
+
+export struct KeyValueItem {
+    label: string,
+    value: string,
+}
+
+export struct CrashFinding {
+    msg: string,
+    detail: string,
+}
+
+component NavButton inherits Rectangle {
+    in property <string> label;
+    in property <bool> active;
+    callback clicked();
+
+    height: 36px;
+    border-radius: 6px;
+    background: active ? #1f3a2b : (touch.has-hover ? #1e242e : transparent);
+    border-width: active ? 1px : 0px;
+    border-color: #22c55e;
+
+    touch := TouchArea {
+        clicked => { root.clicked(); }
+    }
+
+    Text {
+        text: label;
+        color: active ? #4ade80 : #c9d1d9;
+        font-size: 13px;
+        font-weight: active ? 700 : 500;
+        x: 12px;
+        vertical-alignment: center;
+    }
+}
+
+component ActionButton inherits Rectangle {
+    in property <string> label;
+    in property <bool> primary: false;
+    in property <bool> danger: false;
+    callback clicked();
+
+    height: 32px;
+    min-width: 80px;
+    border-radius: 6px;
+    background: danger ? (touch.has-hover ? #7f1d1d : #450a0a)
+              : primary ? (touch.has-hover ? #16a34a : #22c55e)
+              : (touch.has-hover ? #28303d : #1e242e);
+    border-width: 1px;
+    border-color: danger ? #ef4444 : (primary ? #22c55e : #30363d);
+
+    touch := TouchArea {
+        clicked => { root.clicked(); }
+    }
+
+    HorizontalLayout {
+        padding-left: 12px;
+        padding-right: 12px;
+        Text {
+            text: label;
+            color: primary ? #07130b : (danger ? #fca5a5 : #e6edf3);
+            font-size: 12px;
+            font-weight: 600;
+            horizontal-alignment: center;
+            vertical-alignment: center;
+        }
+    }
+}
+
+component ToggleRow inherits Rectangle {
+    in property <string> label;
+    in property <bool> checked;
+    callback toggled();
+
+    height: 38px;
+    border-radius: 6px;
+    background: touch.has-hover ? #1c212b : #161b22;
+
+    touch := TouchArea {
+        clicked => { root.toggled(); }
+    }
+
+    HorizontalLayout {
+        padding-left: 12px;
+        padding-right: 12px;
+        spacing: 10px;
+        alignment: start;
+
+        Rectangle {
+            width: 18px;
+            height: 18px;
+            y: 10px;
+            border-radius: 4px;
+            background: checked ? #22c55e : transparent;
+            border-width: 1.5px;
+            border-color: checked ? #22c55e : #6e7681;
+
+            if checked : Text {
+                text: "✓";
+                color: #07130b;
+                font-size: 12px;
+                font-weight: 800;
+                horizontal-alignment: center;
+                vertical-alignment: center;
+            }
+        }
+
+        Text {
+            text: label;
+            color: #e6edf3;
+            font-size: 13px;
+            vertical-alignment: center;
+        }
+    }
+}
+
+export component MainWindow inherits Window {
+    title: "MCShell";
+    preferred-width: 960px;
+    preferred-height: 620px;
+    min-width: 780px;
+    min-height: 500px;
+    background: #0d1117;
+
+    in-out property <int> active-tab: 0;
+    in-out property <int> more-page: 0;
+    in property <string> status: "Ready";
+    in property <[string]> progress-log: [];
+
+    // Profile & Stats
+    in-out property <string> username: "";
+    in property <string> uuid: "";
+    in property <[KeyValueItem]> playing-stats: [];
+    in property <[KeyValueItem]> storage-stats: [];
+
+    // Versions & Launch
+    in property <[string]> installed-versions: [];
+    in property <[VersionItem]> remote-versions: [];
+
+    // Content lists
+    in property <[ModItem]> mods: [];
+    in property <[string]> packs: [];
+    in property <[string]> worlds: [];
+
+    // Skins
+    in property <bool> has-skin: false;
+    in property <image> skin-preview;
+
+    // Settings & Java & About
+    in property <bool> discord-on: false;
+    in property <bool> hide-after-launch: false;
+    in property <bool> show-logs-separate: false;
+    in property <[JavaItem]> java-list: [];
+    in property <string> about-github: "";
+    in property <string> about-email: "";
+    in property <string> about-discord: "";
+    in property <string> about-telegram: "";
+
+    // Overlays
+    in property <int> browse-seconds: 0;
+    in property <bool> crash-visible: false;
+    in property <string> crash-version: "";
+    in property <string> crash-code: "";
+    in property <[CrashFinding]> crash-findings: [];
+    in property <[KeyValueItem]> crash-files: [];
+    in property <string> crash-tail-name: "";
+    in property <string> crash-tail-text: "";
+
+    // Callbacks
+    callback tab-changed(int);
+    callback save-username(string);
+    callback fetch-versions();
+    callback install-version(string);
+    callback install-fabric(string);
+    callback delete-version(string);
+    callback launch-version(string);
+    callback toggle-mod(int);
+    callback delete-mod(int);
+    callback open-mods-folder();
+    callback browse-online();
+    callback delete-pack(int);
+    callback open-packs-folder();
+    callback export-world(int);
+    callback open-worlds-folder();
+    callback toggle-setting(int);
+    callback install-java(int);
+    callback remove-java(int);
+    callback open-link(string);
+    callback cancel-browse();
+    callback close-crash();
+    callback open-logs-folder();
+    callback open-crash-file();
+
+    VerticalLayout {
+        HorizontalLayout {
+            vertical-stretch: 1;
+
+            // Sidebar
+            Rectangle {
+                width: 170px;
+                background: #161b22;
+                border-width: 1px;
+                border-color: #21262d;
+
+                VerticalLayout {
+                    padding: 12px;
+                    spacing: 6px;
+
+                    Text {
+                        text: "MCShell";
+                        color: #4ade80;
+                        font-size: 18px;
+                        font-weight: 800;
+                        height: 34px;
+                        vertical-alignment: center;
+                    }
+
+                    NavButton { label: "Profile"; active: active-tab == 0; clicked => { active-tab = 0; tab-changed(0); } }
+                    NavButton { label: "Versions"; active: active-tab == 1; clicked => { active-tab = 1; tab-changed(1); } }
+                    NavButton { label: "Mods"; active: active-tab == 2; clicked => { active-tab = 2; tab-changed(2); } }
+                    NavButton { label: "Textures"; active: active-tab == 3; clicked => { active-tab = 3; tab-changed(3); } }
+                    NavButton { label: "Skins"; active: active-tab == 4; clicked => { active-tab = 4; tab-changed(4); } }
+                    NavButton { label: "Worlds"; active: active-tab == 5; clicked => { active-tab = 5; tab-changed(5); } }
+                    NavButton { label: "Launch"; active: active-tab == 6; clicked => { active-tab = 6; tab-changed(6); } }
+                    NavButton { label: "More"; active: active-tab == 7; clicked => { active-tab = 7; tab-changed(7); } }
+
+                    Rectangle { vertical-stretch: 1; }
+                }
+            }
+
+            // Main content area
+            Rectangle {
+                horizontal-stretch: 1;
+                background: #0d1117;
+
+                VerticalLayout {
+                    padding: 18px;
+                    spacing: 14px;
+
+                    // 0: Profile
+                    if active-tab == 0 : VerticalLayout {
+                        spacing: 14px;
+                        Text { text: "Profile"; color: #e6edf3; font-size: 20px; font-weight: 700; }
+
+                        Rectangle {
+                            background: #161b22;
+                            border-radius: 8px;
+                            border-width: 1px;
+                            border-color: #21262d;
+                            VerticalLayout {
+                                padding: 14px;
+                                spacing: 10px;
+                                HorizontalLayout {
+                                    spacing: 10px;
+                                    Text { text: "Username:"; color: #8b949e; width: 90px; vertical-alignment: center; }
+                                    name-input := LineEdit {
+                                        text: root.username;
+                                        horizontal-stretch: 1;
+                                        accepted(t) => { root.save-username(t); }
+                                    }
+                                    ActionButton {
+                                        label: "Save";
+                                        primary: true;
+                                        clicked => { root.save-username(name-input.text); }
+                                    }
+                                }
+                                HorizontalLayout {
+                                    spacing: 10px;
+                                    Text { text: "Offline UUID:"; color: #8b949e; width: 90px; }
+                                    Text { text: root.uuid; color: #c9d1d9; font-size: 12px; }
+                                }
+                            }
+                        }
+
+                        HorizontalLayout {
+                            spacing: 12px;
+                            vertical-stretch: 1;
+
+                            Rectangle {
+                                background: #161b22;
+                                border-radius: 8px;
+                                border-width: 1px;
+                                border-color: #21262d;
+                                horizontal-stretch: 1;
+                                VerticalLayout {
+                                    padding: 14px;
+                                    spacing: 8px;
+                                    Text { text: "Playing"; color: #4ade80; font-size: 14px; font-weight: 700; }
+                                    for item in playing-stats : HorizontalLayout {
+                                        Text { text: item.label; color: #8b949e; width: 110px; font-size: 12px; }
+                                        Text { text: item.value; color: #e6edf3; font-size: 12px; }
+                                    }
+                                }
+                            }
+
+                            Rectangle {
+                                background: #161b22;
+                                border-radius: 8px;
+                                border-width: 1px;
+                                border-color: #21262d;
+                                horizontal-stretch: 1;
+                                VerticalLayout {
+                                    padding: 14px;
+                                    spacing: 8px;
+                                    Text { text: "Storage"; color: #4ade80; font-size: 14px; font-weight: 700; }
+                                    for item in storage-stats : HorizontalLayout {
+                                        Text { text: item.label; color: #8b949e; width: 110px; font-size: 12px; }
+                                        Text { text: item.value; color: #e6edf3; font-size: 12px; }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // 1: Versions
+                    if active-tab == 1 : VerticalLayout {
+                        spacing: 12px;
+                        Text { text: "Versions"; color: #e6edf3; font-size: 20px; font-weight: 700; }
+
+                        HorizontalLayout {
+                            spacing: 8px;
+                            ver-input := LineEdit {
+                                placeholder-text: "Version id (e.g. 1.21.4)";
+                                horizontal-stretch: 1;
+                                accepted(t) => { root.install-version(t); }
+                            }
+                            ActionButton { label: "Install"; primary: true; clicked => { root.install-version(ver-input.text); } }
+                            ActionButton { label: "Install Fabric"; clicked => { root.install-fabric(ver-input.text); } }
+                            ActionButton { label: "Fetch list"; clicked => { root.fetch-versions(); } }
+                        }
+
+                        ScrollView {
+                            vertical-stretch: 1;
+                            VerticalLayout {
+                                spacing: 6px;
+                                for v in remote-versions : Rectangle {
+                                    height: 40px;
+                                    background: #161b22;
+                                    border-radius: 6px;
+                                    border-width: 1px;
+                                    border-color: #21262d;
+                                    HorizontalLayout {
+                                        padding-left: 12px;
+                                        padding-right: 8px;
+                                        spacing: 10px;
+                                        Text { text: v.id; color: #e6edf3; font-weight: 600; vertical-alignment: center; horizontal-stretch: 1; }
+                                        Text { text: v.kind; color: #8b949e; font-size: 12px; vertical-alignment: center; }
+                                        ActionButton { label: "Install"; primary: true; clicked => { root.install-version(v.id); } }
+                                        ActionButton { label: "+ Fabric"; clicked => { root.install-fabric(v.id); } }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // 2: Mods
+                    if active-tab == 2 : VerticalLayout {
+                        spacing: 12px;
+                        HorizontalLayout {
+                            Text { text: "Mods"; color: #e6edf3; font-size: 20px; font-weight: 700; horizontal-stretch: 1; vertical-alignment: center; }
+                            HorizontalLayout {
+                                spacing: 8px;
+                                ActionButton { label: "Browse online"; primary: true; clicked => { root.browse-online(); } }
+                                ActionButton { label: "Open folder"; clicked => { root.open-mods-folder(); } }
+                            }
+                        }
+                        ScrollView {
+                            vertical-stretch: 1;
+                            VerticalLayout {
+                                spacing: 6px;
+                                if mods.length == 0 : Text { text: "No mods yet"; color: #6e7681; }
+                                for m[idx] in mods : Rectangle {
+                                    height: 42px;
+                                    background: #161b22;
+                                    border-radius: 6px;
+                                    border-width: 1px;
+                                    border-color: #21262d;
+                                    HorizontalLayout {
+                                        padding-left: 12px;
+                                        padding-right: 8px;
+                                        spacing: 10px;
+                                        Text {
+                                            text: m.name;
+                                            color: m.enabled ? #e6edf3 : #6e7681;
+                                            vertical-alignment: center;
+                                            horizontal-stretch: 1;
+                                        }
+                                        ActionButton {
+                                            label: m.enabled ? "Enabled" : "Disabled";
+                                            primary: m.enabled;
+                                            clicked => { root.toggle-mod(idx); }
+                                        }
+                                        ActionButton { label: "Delete"; danger: true; clicked => { root.delete-mod(idx); } }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // 3: Textures
+                    if active-tab == 3 : VerticalLayout {
+                        spacing: 12px;
+                        HorizontalLayout {
+                            Text { text: "Texture Packs"; color: #e6edf3; font-size: 20px; font-weight: 700; horizontal-stretch: 1; vertical-alignment: center; }
+                            HorizontalLayout {
+                                spacing: 8px;
+                                ActionButton { label: "Browse online"; primary: true; clicked => { root.browse-online(); } }
+                                ActionButton { label: "Open folder"; clicked => { root.open-packs-folder(); } }
+                            }
+                        }
+                        ScrollView {
+                            vertical-stretch: 1;
+                            VerticalLayout {
+                                spacing: 6px;
+                                if packs.length == 0 : Text { text: "No texture packs yet"; color: #6e7681; }
+                                for p[idx] in packs : Rectangle {
+                                    height: 40px;
+                                    background: #161b22;
+                                    border-radius: 6px;
+                                    border-width: 1px;
+                                    border-color: #21262d;
+                                    HorizontalLayout {
+                                        padding-left: 12px;
+                                        padding-right: 8px;
+                                        Text { text: p; color: #e6edf3; vertical-alignment: center; horizontal-stretch: 1; }
+                                        ActionButton { label: "Delete"; danger: true; clicked => { root.delete-pack(idx); } }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // 4: Skins
+                    if active-tab == 4 : VerticalLayout {
+                        spacing: 14px;
+                        Text { text: "Skins"; color: #e6edf3; font-size: 20px; font-weight: 700; }
+                        Rectangle {
+                            background: #161b22;
+                            border-radius: 8px;
+                            border-width: 1px;
+                            border-color: #21262d;
+                            vertical-stretch: 1;
+                            VerticalLayout {
+                                alignment: center;
+                                spacing: 12px;
+                                if has-skin : Image {
+                                    source: root.skin-preview;
+                                    image-rendering: pixelated;
+                                    width: 192px;
+                                    height: 192px;
+                                    x: (parent.width - self.width) / 2;
+                                }
+                                Text {
+                                    text: has-skin ? "Skin is active" : "No skin set yet";
+                                    color: has-skin ? #4ade80 : #8b949e;
+                                    horizontal-alignment: center;
+                                }
+                            }
+                        }
+                    }
+
+                    // 5: Worlds
+                    if active-tab == 5 : VerticalLayout {
+                        spacing: 12px;
+                        HorizontalLayout {
+                            Text { text: "Worlds"; color: #e6edf3; font-size: 20px; font-weight: 700; horizontal-stretch: 1; vertical-alignment: center; }
+                            ActionButton { label: "Open folder"; clicked => { root.open-worlds-folder(); } }
+                        }
+                        ScrollView {
+                            vertical-stretch: 1;
+                            VerticalLayout {
+                                spacing: 6px;
+                                if worlds.length == 0 : Text { text: "No worlds yet"; color: #6e7681; }
+                                for w[idx] in worlds : Rectangle {
+                                    height: 40px;
+                                    background: #161b22;
+                                    border-radius: 6px;
+                                    border-width: 1px;
+                                    border-color: #21262d;
+                                    HorizontalLayout {
+                                        padding-left: 12px;
+                                        padding-right: 8px;
+                                        Text { text: w; color: #e6edf3; vertical-alignment: center; horizontal-stretch: 1; }
+                                        ActionButton { label: "Export"; clicked => { root.export-world(idx); } }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // 6: Launch
+                    if active-tab == 6 : VerticalLayout {
+                        spacing: 12px;
+                        Text { text: "Launch"; color: #e6edf3; font-size: 20px; font-weight: 700; }
+
+                        ToggleRow { label: "Hide launcher after launch"; checked: hide-after-launch; toggled => { root.toggle-setting(1); } }
+                        ToggleRow { label: "Logs in separate terminal"; checked: show-logs-separate; toggled => { root.toggle-setting(2); } }
+
+                        ScrollView {
+                            vertical-stretch: 1;
+                            VerticalLayout {
+                                spacing: 6px;
+                                if installed-versions.length == 0 : Text { text: "No installed versions yet. Go to Versions tab!"; color: #6e7681; }
+                                for id in installed-versions : Rectangle {
+                                    height: 44px;
+                                    background: #161b22;
+                                    border-radius: 6px;
+                                    border-width: 1px;
+                                    border-color: #21262d;
+                                    HorizontalLayout {
+                                        padding-left: 12px;
+                                        padding-right: 8px;
+                                        spacing: 8px;
+                                        Text { text: id; color: #e6edf3; font-weight: 600; vertical-alignment: center; horizontal-stretch: 1; }
+                                        ActionButton { label: "Play"; primary: true; clicked => { root.launch-version(id); } }
+                                        ActionButton { label: "Delete"; danger: true; clicked => { root.delete-version(id); } }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // 7: More
+                    if active-tab == 7 : VerticalLayout {
+                        spacing: 12px;
+                        HorizontalLayout {
+                            spacing: 8px;
+                            ActionButton { label: "Settings"; primary: more-page == 0; clicked => { more-page = 0; } }
+                            ActionButton { label: "Java"; primary: more-page == 1; clicked => { more-page = 1; } }
+                            ActionButton { label: "About"; primary: more-page == 2; clicked => { more-page = 2; } }
+                        }
+
+                        if more-page == 0 : VerticalLayout {
+                            spacing: 8px;
+                            ToggleRow { label: "Discord presence"; checked: discord-on; toggled => { root.toggle-setting(0); } }
+                            ToggleRow { label: "Hide launcher after launch"; checked: hide-after-launch; toggled => { root.toggle-setting(1); } }
+                            ToggleRow { label: "Logs in separate terminal"; checked: show-logs-separate; toggled => { root.toggle-setting(2); } }
+                        }
+
+                        if more-page == 1 : ScrollView {
+                            vertical-stretch: 1;
+                            VerticalLayout {
+                                spacing: 6px;
+                                for j in java-list : Rectangle {
+                                    height: 44px;
+                                    background: #161b22;
+                                    border-radius: 6px;
+                                    border-width: 1px;
+                                    border-color: #21262d;
+                                    HorizontalLayout {
+                                        padding-left: 12px;
+                                        padding-right: 8px;
+                                        spacing: 10px;
+                                        Text { text: "Java " + j.major; color: #e6edf3; font-weight: 600; width: 70px; vertical-alignment: center; }
+                                        Text { text: j.note; color: #8b949e; font-size: 12px; vertical-alignment: center; horizontal-stretch: 1; }
+                                        if !j.installed : ActionButton { label: "Download"; primary: true; clicked => { root.install-java(j.major); } }
+                                        if j.installed : ActionButton { label: "Remove"; danger: true; clicked => { root.remove-java(j.major); } }
+                                    }
+                                }
+                            }
+                        }
+
+                        if more-page == 2 : VerticalLayout {
+                            spacing: 10px;
+                            Text { text: "MCShell Launcher"; color: #4ade80; font-size: 18px; font-weight: 700; }
+                            Text { text: "Fast native Minecraft launcher built with Rust & Slint."; color: #8b949e; }
+                            HorizontalLayout {
+                                spacing: 8px;
+                                ActionButton { label: "GitHub"; clicked => { root.open-link(about-github); } }
+                                ActionButton { label: "Email"; clicked => { root.open-link("mailto:" + about-email); } }
+                                ActionButton { label: "Discord"; clicked => { root.open-link(about-discord); } }
+                                ActionButton { label: "Telegram"; clicked => { root.open-link(about-telegram); } }
+                            }
+                        }
+                    }
+
+                    // Progress log box (shows when active)
+                    if progress-log.length > 0 : Rectangle {
+                        background: #161b22;
+                        border-radius: 6px;
+                        border-width: 1px;
+                        border-color: #21262d;
+                        VerticalLayout {
+                            padding: 10px;
+                            spacing: 3px;
+                            for line in progress-log : Text {
+                                text: line;
+                                color: #8b949e;
+                                font-size: 11px;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Status bar
+        Rectangle {
+            height: 26px;
+            background: #161b22;
+            border-width: 1px;
+            border-color: #21262d;
+            Text {
+                x: 12px;
+                text: root.status;
+                color: #8b949e;
+                font-size: 12px;
+                vertical-alignment: center;
+            }
+        }
+    }
+
+    // Browse countdown overlay
+    if browse-seconds > 0 : Rectangle {
+        background: #0d1117e8;
+        VerticalLayout {
+            alignment: center;
+            spacing: 14px;
+            Text {
+                text: "Opening Modrinth browser in " + browse-seconds + "s...";
+                color: #4ade80;
+                font-size: 20px;
+                font-weight: 700;
+                horizontal-alignment: center;
+            }
+            HorizontalLayout {
+                alignment: center;
+                ActionButton { label: "Cancel"; danger: true; clicked => { root.cancel-browse(); } }
+            }
+        }
+    }
+
+    // Crash report overlay
+    if crash-visible : Rectangle {
+        background: #0d1117f5;
+        VerticalLayout {
+            padding: 24px;
+            spacing: 12px;
+            HorizontalLayout {
+                Text { text: "Game crashed (" + crash-version + ", exit " + crash-code + ")"; color: #ef4444; font-size: 18px; font-weight: 700; horizontal-stretch: 1; }
+                HorizontalLayout {
+                    spacing: 8px;
+                    ActionButton { label: "Logs folder"; clicked => { root.open-logs-folder(); } }
+                    ActionButton { label: "Crash report"; clicked => { root.open-crash-file(); } }
+                    ActionButton { label: "Close"; primary: true; clicked => { root.close-crash(); } }
+                }
+            }
+            for f in crash-findings : VerticalLayout {
+                Text { text: "▸ " + f.msg; color: #facc15; font-weight: 700; }
+                Text { text: "  " + f.detail; color: #8b949e; font-size: 12px; }
+            }
+            Rectangle {
+                background: #161b22;
+                border-radius: 6px;
+                border-width: 1px;
+                border-color: #30363d;
+                vertical-stretch: 1;
+                ScrollView {
+                    VerticalLayout {
+                        padding: 10px;
+                        Text { text: crash-tail-name; color: #4ade80; font-weight: 700; }
+                        Text { text: crash-tail-text; color: #c9d1d9; font-size: 11px; wrap: word-wrap; }
+                    }
+                }
+            }
+        }
+    }
+}
