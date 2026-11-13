@@ -142,7 +142,7 @@ impl App {
         }
     }
 
-    fn spawn_java_install(&mut self, major: u32) {
+    pub fn spawn_java_install(&mut self, major: u32) {
         self.progress_log.clear();
         let (tx, rx) = mpsc::channel();
         self.progress_rx = Some(rx);
@@ -168,7 +168,7 @@ impl App {
         self.on_tab_change();
     }
 
-    fn on_tab_change(&mut self) {
+    pub fn on_tab_change(&mut self) {
         self.list_index = 0;
         self.mods = mods::list();
         self.packs = packs::list();
@@ -188,7 +188,7 @@ impl App {
         });
     }
 
-    fn spawn_fabric_install(&mut self, mc_version: String) {
+    pub fn spawn_fabric_install(&mut self, mc_version: String) {
         self.progress_log.clear();
         let (tx, rx) = mpsc::channel();
         self.progress_rx = Some(rx);
@@ -209,18 +209,19 @@ impl App {
         });
     }
 
-    fn poll_progress(&mut self) {
+    pub fn poll_progress(&mut self) -> bool {
+        let mut changed = false;
         let mut disconnected = false;
         if let Some(rx) = &self.progress_rx {
             loop {
                 match rx.try_recv() {
                     Ok(msg) => {
+                        changed = true;
                         self.progress_log.push(msg.clone());
-                        // Храним только последние 6 сообщений, чтобы не забивать экран
                         if self.progress_log.len() > 6 {
                             self.progress_log.remove(0);
                         }
-                        self.status = msg; // для нижней строки статуса
+                        self.status = msg;
                     }
                     Err(TryRecvError::Empty) => break,
                     Err(TryRecvError::Disconnected) => { disconnected = true; break; }
@@ -228,10 +229,12 @@ impl App {
             }
         }
         if disconnected {
+            changed = true;
             self.progress_rx = None;
             self.installed = versions::installed_versions();
             self.progress_log.push("✅ Install complete!".to_string());
         }
+        changed
     }
 
     fn ask_delete(&mut self, target: DeleteTarget, label: &str) {
@@ -278,7 +281,7 @@ impl App {
         }
     }
 
-    fn start_browse(&mut self) {
+    pub fn start_browse(&mut self) {
         if self.browse.is_none() {
             match browse::start() {
                 Ok(s) => self.browse = Some(s),
@@ -294,12 +297,14 @@ impl App {
         }
     }
 
-    fn poll_browse(&mut self) {
+    pub fn poll_browse(&mut self) -> bool {
+        let mut dirty = self.browse_launch.is_some();
         if let Some(s) = &self.browse {
             let mut changed = false;
             while let Ok(msg) = s.events.try_recv() {
                 self.status = msg;
                 changed = true;
+                dirty = true;
             }
             if changed {
                 self.mods = mods::list();
@@ -315,6 +320,83 @@ impl App {
             window::open_url(&url);
             self.browse_launch = None;
             self.status = format!("browser: {url}");
+            dirty = true;
+        }
+        dirty
+    }
+
+    pub fn launch_version(&mut self, id: String) {
+        let uuid = self.profile.offline_uuid();
+        let username = self.profile.username.clone();
+        let win = if self.hide_after_launch { crate::window::hide_current() } else { Err(String::new()) };
+        if let Err(e) = &win {
+            if !e.is_empty() {
+                self.status = format!("hide window failed: {e}");
+            }
+        }
+        self.status = match launcher::launch(&id, &username, &uuid, self.show_logs_separate, win) {
+            Ok(()) => format!("launched {id}"),
+            Err(e) => format!("launch error: {e}"),
+        };
+    }
+
+    pub fn fetch_remote_versions(&mut self) {
+        match versions::fetch_manifest() {
+            Ok(list) => {
+                self.status = format!("fetched {} versions", list.len());
+                self.remote_versions = list;
+            }
+            Err(e) => self.status = format!("fetch error: {e}"),
+        }
+    }
+
+    pub fn delete_version(&mut self, id: &str) {
+        match versions::delete_version(id) {
+            Ok(()) => {
+                self.status = format!("deleted {id}");
+                self.progress_log.clear();
+                self.installed = versions::installed_versions();
+            }
+            Err(e) => self.status = format!("delete error: {e}"),
+        }
+    }
+
+    pub fn toggle_mod(&mut self, idx: usize) {
+        if let Some(m) = self.mods.get(idx).cloned() {
+            self.status = match mods::toggle(&m) {
+                Ok(()) => format!("toggled {}", m.name),
+                Err(e) => format!("toggle error: {e}"),
+            };
+            self.mods = mods::list();
+        }
+    }
+
+    pub fn delete_mod(&mut self, idx: usize) {
+        if let Some(m) = self.mods.get(idx).cloned() {
+            self.status = match mods::remove(&m) {
+                Ok(()) => format!("removed {}", m.name),
+                Err(e) => format!("remove error: {e}"),
+            };
+            self.mods = mods::list();
+        }
+    }
+
+    pub fn delete_pack(&mut self, idx: usize) {
+        if let Some(name) = self.packs.get(idx).cloned() {
+            self.status = match packs::remove(&name) {
+                Ok(()) => format!("removed {name}"),
+                Err(e) => format!("remove error: {e}"),
+            };
+            self.packs = packs::list();
+        }
+    }
+
+    pub fn export_world(&mut self, idx: usize) {
+        if let Some(name) = self.worlds.get(idx).cloned() {
+            self.status = match worlds::export(&name) {
+                Ok(p) => format!("exported to {}", p.display()),
+                Err(e) => format!("export error: {e}"),
+            };
         }
     }
 
