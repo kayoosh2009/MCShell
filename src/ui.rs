@@ -24,6 +24,23 @@ fn load_skin_image() -> slint::Image {
     slint::Image::default()
 }
 
+fn load_bg_image() -> slint::Image {
+    let candidates = ["backgroud.png", "assets/backgroud.png", "background.png", "assets/background.png"];
+    for path in candidates {
+        if let Ok(img) = image::open(path) {
+            let small = img.thumbnail(960, 620).to_rgba8();
+            let blurred = image::imageops::blur(&small, 5.0);
+            let buf = slint::SharedPixelBuffer::<slint::Rgba8Pixel>::clone_from_slice(
+                blurred.as_raw(),
+                blurred.width(),
+                blurred.height(),
+            );
+            return slint::Image::from_rgba8(buf);
+        }
+    }
+    slint::Image::default()
+}
+
 fn sync_ui(win: &MainWindow, app: &App) {
     win.set_status(SharedString::from(app.status.as_str()));
     win.set_username(SharedString::from(app.profile.username.as_str()));
@@ -134,6 +151,7 @@ fn sync_ui(win: &MainWindow, app: &App) {
 
 pub fn run() -> Result<()> {
     let win = MainWindow::new()?;
+    win.set_bg_image(load_bg_image());
     let app = Rc::new(RefCell::new(App::new()));
     sync_ui(&win, &app.borrow());
 
