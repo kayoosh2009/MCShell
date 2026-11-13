@@ -25,25 +25,23 @@ fn load_skin_image() -> slint::Image {
 }
 
 fn load_bg_image() -> slint::Image {
-    let candidates = [
-        "ui/icons/backgroud.png",
-        "ui/icons/background.png",
-        "backgroud.png",
-        "background.png",
-    ];
-    for path in candidates {
-        if let Ok(img) = image::open(path) {
+    let bytes = include_bytes!("../ui/icons/backgroud.png");
+    match image::load_from_memory(bytes) {
+        Ok(img) => {
             let small = img.thumbnail(960, 620).to_rgba8();
-            let blurred = image::imageops::blur(&small, 5.0);
+            let blurred = image::imageops::blur(&small, 3.0);
             let buf = slint::SharedPixelBuffer::<slint::Rgba8Pixel>::clone_from_slice(
                 blurred.as_raw(),
                 blurred.width(),
                 blurred.height(),
             );
-            return slint::Image::from_rgba8(buf);
+            slint::Image::from_rgba8(buf)
+        }
+        Err(e) => {
+            eprintln!("bg image decode error: {e}");
+            slint::Image::default()
         }
     }
-    slint::Image::default()
 }
 
 fn sync_ui(win: &MainWindow, app: &App) {
