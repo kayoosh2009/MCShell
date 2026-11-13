@@ -175,7 +175,7 @@ impl App {
         self.worlds = worlds::list();
     }
 
-    fn spawn_version_install(&mut self, id: String) {
+    pub fn spawn_version_install(&mut self, id: String) {
         self.progress_log.clear();
         let (tx, rx) = mpsc::channel();
         self.progress_rx = Some(rx);
