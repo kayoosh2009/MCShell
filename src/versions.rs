@@ -1,33 +1,11 @@
 use std::fs;
-use std::io::{Read, Write};
+use std::io::Read;
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
-use std::sync::Mutex;
-use std::time::Instant;
 
 use anyhow::{anyhow, Result};
 use serde_json::Value;
 
 use crate::paths;
-
-// Глобальное состояние прогресса для веб-интерфейса
-pub static IS_DOWNLOADING: AtomicBool = AtomicBool::new(false);
-pub static DOWNLOADED_BYTES: AtomicU64 = AtomicU64::new(0);
-pub static TOTAL_BYTES: AtomicU64 = AtomicU64::new(0);
-pub static SPEED_BPS: AtomicU64 = AtomicU64::new(0);
-pub static CURRENT_VERSION_TASK: Mutex<String> = Mutex::new(String::new());
-
-pub fn get_progress_json() -> String {
-    let active = IS_DOWNLOADING.load(Ordering::Relaxed);
-    let downloaded = DOWNLOADED_BYTES.load(Ordering::Relaxed);
-    let total = TOTAL_BYTES.load(Ordering::Relaxed);
-    let speed = SPEED_BPS.load(Ordering::Relaxed);
-    let task = CURRENT_VERSION_TASK.lock().unwrap().clone();
-
-    format!(
-        r#"{{"active":{active},"downloaded":{downloaded},"total":{total},"speed":{speed},"task":"{task}"}}"#
-    )
-}
 
 pub struct VersionEntry {
     pub id: String,
@@ -49,34 +27,6 @@ pub fn fetch_manifest() -> Result<Vec<VersionEntry>> {
         .collect())
 }
 
-pub fn load_favorites() -> Vec<String> {
-    let path = paths::data_dir().join("favorites.json");
-    if let Ok(bytes) = fs::read(path) {
-        serde_json::from_slice(&bytes).unwrap_or_default()
-    } else {
-        Vec::new()
-    }
-}
-
-pub fn save_favorites(favs: &[String]) {
-    let _ = fs::create_dir_all(paths::data_dir());
-    let path = paths::data_dir().join("favorites.json");
-    if let Ok(bytes) = serde_json::to_vec(favs) {
-        let _ = fs::write(path, bytes);
-    }
-}
-
-pub fn toggle_favorite(id: &str) -> Vec<String> {
-    let mut favs = load_favorites();
-    if favs.iter().any(|x| x == id) {
-        favs.retain(|x| x != id);
-    } else {
-        favs.push(id.to_string());
-    }
-    save_favorites(&favs);
-    favs
-}
-
 pub fn installed_versions() -> Vec<String> {
     let mut out = Vec::new();
     if let Ok(entries) = fs::read_dir(paths::versions_dir()) {
@@ -89,15 +39,6 @@ pub fn installed_versions() -> Vec<String> {
         }
     }
     out.sort();
-
-    // Сортируем: избранные версии поднимаются наверх (и в TUI, и в Web)
-    let favs = load_favorites();
-    out.sort_by(|a, b| {
-        let a_fav = favs.contains(a);
-        let b_fav = favs.contains(b);
-        b_fav.cmp(&a_fav).then_with(|| a.cmp(b))
-    });
-
     out
 }
 
@@ -108,39 +49,9 @@ pub(crate) fn download_to(url: &str, dest: &PathBuf) -> Result<()> {
     if let Some(parent) = dest.parent() {
         fs::create_dir_all(parent)?;
     }
-
-    let resp = ureq::get(url).call()?;
-    if let Some(len_str) = resp.header("Content-Length") {
-        if let Ok(len) = len_str.parse::<u64>() {
-            TOTAL_BYTES.fetch_add(len, Ordering::Relaxed);
-        }
-    }
-
-    let mut reader = resp.into_reader();
-    let mut file = fs::File::create(dest)?;
-    let mut buf = [0u8; 16384];
-
-    let mut last_instant = Instant::now();
-    let mut bytes_since_last = 0u64;
-
-    loop {
-        let n = reader.read(&mut buf)?;
-        if n == 0 {
-            break;
-        }
-        file.write_all(&buf[..n])?;
-        DOWNLOADED_BYTES.fetch_add(n as u64, Ordering::Relaxed);
-        bytes_since_last += n as u64;
-
-        let elapsed = last_instant.elapsed();
-        if elapsed.as_millis() >= 250 {
-            let speed = (bytes_since_last as f64 / elapsed.as_secs_f64()) as u64;
-            SPEED_BPS.store(speed, Ordering::Relaxed);
-            last_instant = Instant::now();
-            bytes_since_last = 0;
-        }
-    }
-
+    let mut bytes = Vec::new();
+    ureq::get(url).call()?.into_reader().read_to_end(&mut bytes)?;
+    fs::write(dest, bytes)?;
     Ok(())
 }
 
@@ -263,45 +174,31 @@ fn download_assets(version_json: &Value, progress: &dyn Fn(String)) -> Result<()
 }
 
 pub fn install_version(id: &str, progress: &dyn Fn(String)) -> Result<()> {
-    IS_DOWNLOADING.store(true, Ordering::Relaxed);
-    DOWNLOADED_BYTES.store(0, Ordering::Relaxed);
-    TOTAL_BYTES.store(0, Ordering::Relaxed);
-    SPEED_BPS.store(0, Ordering::Relaxed);
-    if let Ok(mut task) = CURRENT_VERSION_TASK.lock() {
-        *task = id.to_string();
+    let manifest = fetch_manifest()?;
+    let entry = manifest.iter().find(|v| v.id == id).ok_or_else(|| anyhow!("version {id} not found"))?;
+
+    let version_dir = paths::versions_dir().join(id);
+    let json_path = version_dir.join(format!("{id}.json"));
+    progress(format!("fetching {id}.json"));
+    download_to(&entry.url, &json_path)?;
+
+    let version_json: Value = serde_json::from_slice(&fs::read(&json_path)?)?;
+
+    if let Some(url) = version_json["downloads"]["client"]["url"].as_str() {
+        progress("downloading client jar".to_string());
+        download_to(url, &version_dir.join(format!("{id}.jar")))?;
     }
 
-    let result = (|| -> Result<()> {
-        let manifest = fetch_manifest()?;
-        let entry = manifest.iter().find(|v| v.id == id).ok_or_else(|| anyhow!("version {id} not found"))?;
+    if let Some(libs) = version_json.get("libraries") {
+        progress("downloading libraries".to_string());
+        download_libraries(libs, progress)?;
+    }
 
-        let version_dir = paths::versions_dir().join(id);
-        let json_path = version_dir.join(format!("{id}.json"));
-        progress(format!("fetching {id}.json"));
-        download_to(&entry.url, &json_path)?;
+    progress("downloading assets".to_string());
+    download_assets(&version_json, progress)?;
 
-        let version_json: Value = serde_json::from_slice(&fs::read(&json_path)?)?;
-
-        if let Some(url) = version_json["downloads"]["client"]["url"].as_str() {
-            progress("downloading client jar".to_string());
-            download_to(url, &version_dir.join(format!("{id}.jar")))?;
-        }
-
-        if let Some(libs) = version_json.get("libraries") {
-            progress("downloading libraries".to_string());
-            download_libraries(libs, progress)?;
-        }
-
-        progress("downloading assets".to_string());
-        download_assets(&version_json, progress)?;
-
-        progress(format!("{id}: install complete"));
-        Ok(())
-    })();
-
-    IS_DOWNLOADING.store(false, Ordering::Relaxed);
-    SPEED_BPS.store(0, Ordering::Relaxed);
-    result
+    progress(format!("{id}: install complete"));
+    Ok(())
 }
 
 pub fn delete_version(id: &str) -> Result<()> {
