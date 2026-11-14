@@ -335,7 +335,7 @@ export component MainWindow inherits Window {
             }
         }
 
-        // Bottom bar: play, nickname, game version
+        // Bottom bar: nickname, game version, play
         Rectangle {
             height: 62px;
             background: #0d1011e6;
@@ -346,20 +346,6 @@ export component MainWindow inherits Window {
                 padding-left: 16px;
                 padding-right: 16px;
                 spacing: 12px;
-                alignment: start;
-
-                ActionButton {
-                    label: "Play";
-                    icon: @image-url("icons/play.png");
-                    primary: true;
-                    width: 130px;
-                    height: 36px;
-                    y: (parent.height - self.height) / 2;
-                    clicked => {
-                        root.save-username(name-input.text);
-                        root.launch-version(ver-box.current-value);
-                    }
-                }
 
                 name-input := LineEdit {
                     text: root.username;
@@ -376,6 +362,21 @@ export component MainWindow inherits Window {
                     y: (parent.height - self.height) / 2;
                     model: root.installed-versions;
                     current-value <=> root.selected-version;
+                }
+
+                Rectangle { horizontal-stretch: 1; }
+
+                ActionButton {
+                    label: "Play";
+                    icon: @image-url("icons/play.png");
+                    primary: true;
+                    width: 130px;
+                    height: 36px;
+                    y: (parent.height - self.height) / 2;
+                    clicked => {
+                        root.save-username(name-input.text);
+                        root.launch-version(ver-box.current-value);
+                    }
                 }
             }
         }
