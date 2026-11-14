@@ -53,6 +53,7 @@ component NavButton inherits Rectangle {
 
 component ActionButton inherits Rectangle {
     in property <string> label;
+    in property <image> icon;
     in property <bool> primary: false;
     in property <bool> danger: false;
     callback clicked();
@@ -73,6 +74,17 @@ component ActionButton inherits Rectangle {
     HorizontalLayout {
         padding-left: 12px;
         padding-right: 12px;
+        spacing: 6px;
+        alignment: center;
+
+        if icon.width > 0 : Image {
+            source: icon;
+            width: 14px;
+            height: 14px;
+            y: (parent.height - self.height) / 2;
+            colorize: primary ? #0d1011 : #ffffff;
+        }
+
         Text {
             text: label;
             color: primary ? #0d1011 : (danger ? #fca5a5 : #ffffff);
@@ -323,7 +335,7 @@ export component MainWindow inherits Window {
             }
         }
 
-        // Bottom bar: nickname, game version, play
+        // Bottom bar: play, nickname, game version
         Rectangle {
             height: 62px;
             background: #0d1011e6;
@@ -335,6 +347,19 @@ export component MainWindow inherits Window {
                 padding-right: 16px;
                 spacing: 12px;
                 alignment: start;
+
+                ActionButton {
+                    label: "Play";
+                    icon: @image-url("icons/play.png");
+                    primary: true;
+                    width: 130px;
+                    height: 36px;
+                    y: (parent.height - self.height) / 2;
+                    clicked => {
+                        root.save-username(name-input.text);
+                        root.launch-version(ver-box.current-value);
+                    }
+                }
 
                 name-input := LineEdit {
                     text: root.username;
@@ -351,20 +376,6 @@ export component MainWindow inherits Window {
                     y: (parent.height - self.height) / 2;
                     model: root.installed-versions;
                     current-value <=> root.selected-version;
-                }
-
-                Rectangle { horizontal-stretch: 1; }
-
-                ActionButton {
-                    label: "Play";
-                    primary: true;
-                    width: 130px;
-                    height: 36px;
-                    y: (parent.height - self.height) / 2;
-                    clicked => {
-                        root.save-username(name-input.text);
-                        root.launch-version(ver-box.current-value);
-                    }
                 }
             }
         }
