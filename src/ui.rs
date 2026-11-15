@@ -57,6 +57,18 @@ fn sync_ui(win: &MainWindow, app: &App) {
         win.set_skin_preview(load_skin_image());
     }
 
+    let history: Vec<SkinHistoryItem> = crate::skin::list_history()
+        .into_iter()
+        .filter_map(|(name, path)| {
+            let img = image::open(path).ok()?;
+            Some(SkinHistoryItem {
+                name: SharedString::from(name),
+                preview: crate::skin_view::render_preview(&img),
+            })
+        })
+        .collect();
+    win.set_skin_history(ModelRc::from(Rc::new(VecModel::from(history))));
+
     let progress: Vec<SharedString> = app.progress_log.iter().map(SharedString::from).collect();
     win.set_progress_log(ModelRc::from(Rc::new(VecModel::from(progress))));
 
@@ -375,6 +387,43 @@ pub fn run() -> Result<()> {
                 if let Some(p) = &r.crash_file {
                     window::open_url(p);
                 }
+            }
+        });
+    }
+
+    {
+        let app = Rc::clone(&app);
+        let weak = win.as_weak();
+        win.on_apply_skin_path(move |raw| {
+            let mut a = app.borrow_mut();
+            let path = paths::clean_path(&raw);
+            match crate::skin::set_skin(&path) {
+                Ok(_) => {
+                    a.has_skin = true;
+                    a.status = "skin updated".to_string();
+                }
+                Err(e) => a.status = format!("skin error: {e}"),
+            }
+            if let Some(w) = weak.upgrade() {
+                sync_ui(&w, &a);
+            }
+        });
+    }
+
+    {
+        let app = Rc::clone(&app);
+        let weak = win.as_weak();
+        win.on_select_history_skin(move |name| {
+            let mut a = app.borrow_mut();
+            match crate::skin::select_history(&name) {
+                Ok(()) => {
+                    a.has_skin = true;
+                    a.status = format!("skin: {name}");
+                }
+                Err(e) => a.status = format!("skin error: {e}"),
+            }
+            if let Some(w) = weak.upgrade() {
+                sync_ui(&w, &a);
             }
         });
     }
