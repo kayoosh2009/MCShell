@@ -26,6 +26,11 @@ export struct CrashFinding {
     detail: string,
 }
 
+export struct SkinHistoryItem {
+    name: string,
+    preview: image,
+}
+
 component NavButton inherits Rectangle {
     in property <string> label;
     in property <bool> active;
@@ -176,6 +181,9 @@ export component MainWindow inherits Window {
     // Skins
     in property <bool> has-skin: false;
     in property <image> skin-preview;
+    in property <[SkinHistoryItem]> skin-history: [];
+    callback apply-skin-path(string);
+    callback select-history-skin(string);
 
     // Settings & Java & About
     in property <bool> discord-on: false;
@@ -315,6 +323,120 @@ export component MainWindow inherits Window {
                             }
                         }
                     }
+
+                    // 4: Skins
+                    if active-tab == 4 : HorizontalLayout {
+                        spacing: 14px;
+
+                        // Текущий скин + загрузка
+                        Rectangle {
+                            width: 260px;
+                            background: #0d1011cc;
+                            border-radius: 8px;
+                            border-width: 1px;
+                            border-color: #ffffff20;
+
+                            VerticalLayout {
+                                padding: 14px;
+                                spacing: 12px;
+                                alignment: start;
+
+                                Text { text: "Current Skin"; color: #ffffff; font-size: 14px; font-weight: 700; }
+
+                                if has-skin : Image {
+                                    source: root.skin-preview;
+                                    image-rendering: pixelated;
+                                    width: 112px;
+                                    height: 224px;
+                                    x: (parent.width - self.width) / 2;
+                                }
+                                if !has-skin : Text {
+                                    text: "No skin set";
+                                    color: #9ca3af;
+                                    height: 224px;
+                                    horizontal-alignment: center;
+                                    vertical-alignment: center;
+                                }
+
+                                HorizontalLayout {
+                                    spacing: 6px;
+                                    skin-path := LineEdit {
+                                        placeholder-text: "Path to .png";
+                                        horizontal-stretch: 1;
+                                        height: 32px;
+                                        accepted(p) => { root.apply-skin-path(p); }
+                                    }
+                                    ActionButton {
+                                        label: "Set";
+                                        primary: true;
+                                        min-width: 54px;
+                                        clicked => { root.apply-skin-path(skin-path.text); }
+                                    }
+                                }
+                            }
+                        }
+
+                        // Библиотека прошлых скинов
+                        Rectangle {
+                            horizontal-stretch: 1;
+                            background: #0d1011cc;
+                            border-radius: 8px;
+                            border-width: 1px;
+                            border-color: #ffffff20;
+
+                            VerticalLayout {
+                                padding: 14px;
+                                spacing: 10px;
+                                alignment: start;
+
+                                Text { text: "Saved Skins"; color: #ffffff; font-size: 14px; font-weight: 700; }
+
+                                if skin-history.length == 0 : Text {
+                                    text: "No saved skins yet";
+                                    color: #9ca3af;
+                                    font-size: 12px;
+                                }
+
+                                ScrollView {
+                                    height: 280px;
+                                    VerticalLayout {
+                                        spacing: 6px;
+                                        alignment: start;
+                                        for item in skin-history : Rectangle {
+                                            height: 52px;
+                                            border-radius: 6px;
+                                            background: hist-touch.has-hover ? #ffffff18 : #ffffff0a;
+                                            border-width: 1px;
+                                            border-color: #ffffff18;
+
+                                            hist-touch := TouchArea {
+                                                clicked => { root.select-history-skin(item.name); }
+                                            }
+
+                                            HorizontalLayout {
+                                                padding-left: 10px;
+                                                padding-right: 10px;
+                                                spacing: 12px;
+                                                Image {
+                                                    source: item.preview;
+                                                    image-rendering: pixelated;
+                                                    width: 20px;
+                                                    height: 40px;
+                                                    y: (parent.height - self.height) / 2;
+                                                }
+                                                Text {
+                                                    text: item.name;
+                                                    color: #ffffff;
+                                                    font-size: 13px;
+                                                    vertical-alignment: center;
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
             }
 
@@ -365,6 +487,32 @@ export component MainWindow inherits Window {
                 }
 
                 Rectangle { horizontal-stretch: 1; }
+
+                Rectangle {
+                    width: 36px;
+                    height: 36px;
+                    y: (parent.height - self.height) / 2;
+                    border-radius: 6px;
+                    background: skin-touch.has-hover ? #ffffff22 : #ffffff12;
+                    border-width: 1px;
+                    border-color: active-tab == 4 ? #ffffff : #ffffff28;
+
+                    skin-touch := TouchArea {
+                        clicked => {
+                            active-tab = active-tab == 4 ? 0 : 4;
+                            tab-changed(active-tab);
+                        }
+                    }
+
+                    Image {
+                        source: @image-url("icons/skin.png");
+                        width: 18px;
+                        height: 18px;
+                        x: (parent.width - self.width) / 2;
+                        y: (parent.height - self.height) / 2;
+                        colorize: #ffffff;
+                    }
+                }
 
                 ActionButton {
                     label: "Play";
