@@ -184,6 +184,7 @@ export component MainWindow inherits Window {
     in property <[SkinHistoryItem]> skin-history: [];
     callback apply-skin-path(string);
     callback select-history-skin(string);
+    callback rotate-skin(float, float);
 
     // Settings & Java & About
     in property <bool> discord-on: false;
@@ -343,12 +344,34 @@ export component MainWindow inherits Window {
 
                                 Text { text: "Current Skin"; color: #ffffff; font-size: 14px; font-weight: 700; }
 
-                                if has-skin : Image {
-                                    source: root.skin-preview;
-                                    image-rendering: pixelated;
-                                    width: 112px;
+                                if has-skin : Rectangle {
+                                    width: 180px;
                                     height: 224px;
                                     x: (parent.width - self.width) / 2;
+
+                                    Image {
+                                        source: root.skin-preview;
+                                        width: 100%;
+                                        height: 100%;
+                                    }
+
+                                    skin-drag := TouchArea {
+                                        property <length> last-x;
+                                        property <length> last-y;
+                                        pointer-event(e) => {
+                                            if e.kind == PointerEventKind.down {
+                                                self.last-x = self.mouse-x;
+                                                self.last-y = self.mouse-y;
+                                            }
+                                        }
+                                        moved => {
+                                            if self.pressed {
+                                                root.rotate-skin((self.mouse-x - self.last-x) / 1px, (self.mouse-y - self.last-y) / 1px);
+                                                self.last-x = self.mouse-x;
+                                                self.last-y = self.mouse-y;
+                                            }
+                                        }
+                                    }
                                 }
                                 if !has-skin : Text {
                                     text: "No skin set";

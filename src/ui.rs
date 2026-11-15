@@ -17,9 +17,9 @@ fn kv_item(label: &str, value: String) -> KeyValueItem {
     }
 }
 
-fn load_skin_image() -> slint::Image {
+fn load_skin_3d(yaw: f32, pitch: f32) -> slint::Image {
     if let Ok(img) = image::open(paths::skin_file()) {
-        return crate::skin_view::render_preview(&img);
+        return crate::skin_view::render_3d(&img, yaw, pitch);
     }
     slint::Image::default()
 }
@@ -53,8 +53,8 @@ fn sync_ui(win: &MainWindow, app: &App) {
     win.set_discord_on(app.discord_on);
     win.set_has_skin(app.has_skin);
 
-    if app.has_skin {
-        win.set_skin_preview(load_skin_image());
+    if app.has_skin && win.get_skin_preview().size().width == 0 {
+        win.set_skin_preview(load_skin_3d(0.45, 0.15));
     }
 
     let history: Vec<SkinHistoryItem> = crate::skin::list_history()
@@ -424,6 +424,21 @@ pub fn run() -> Result<()> {
             }
             if let Some(w) = weak.upgrade() {
                 sync_ui(&w, &a);
+            }
+        });
+    }
+
+    {
+        let yaw = Rc::new(RefCell::new(0.45f32));
+        let pitch = Rc::new(RefCell::new(0.15f32));
+        let weak = win.as_weak();
+        win.on_rotate_skin(move |dx, dy| {
+            let mut y = yaw.borrow_mut();
+            let mut p = pitch.borrow_mut();
+            *y += dx * 0.015;
+            *p = (*p + dy * 0.015).clamp(-1.2, 1.2);
+            if let Some(w) = weak.upgrade() {
+                w.set_skin_preview(load_skin_3d(*y, *p));
             }
         });
     }
