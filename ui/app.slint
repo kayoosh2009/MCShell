@@ -31,6 +31,13 @@ export struct SkinHistoryItem {
     preview: image,
 }
 
+component GlassCard inherits Rectangle {
+    background: #0d1011cc;
+    border-radius: 10px;
+    border-width: 1px;
+    border-color: #ffffff20;
+}
+
 component NavButton inherits Rectangle {
     in property <string> label;
     in property <bool> active;
@@ -42,7 +49,11 @@ component NavButton inherits Rectangle {
     border-width: active ? 0px : 1px;
     border-color: touch.has-hover ? #ffffff25 : transparent;
 
+    animate background { duration: 120ms; }
+    animate border-color { duration: 120ms; }
+
     touch := TouchArea {
+        mouse-cursor: pointer;
         clicked => { root.clicked(); }
     }
 
@@ -72,7 +83,10 @@ component ActionButton inherits Rectangle {
     border-width: 1px;
     border-color: danger ? #ef4444 : (primary ? #ffffff : #ffffff28);
 
+    animate background { duration: 120ms; }
+
     touch := TouchArea {
+        mouse-cursor: pointer;
         clicked => { root.clicked(); }
     }
 
@@ -110,7 +124,10 @@ component ToggleRow inherits Rectangle {
     border-radius: 6px;
     background: touch.has-hover ? #1c212b : #161b22;
 
+    animate background { duration: 120ms; }
+
     touch := TouchArea {
+        mouse-cursor: pointer;
         clicked => { root.toggled(); }
     }
 
@@ -266,17 +283,14 @@ export component MainWindow inherits Window {
                         spacing: 12px;
 
                         // Updates 1.0.17
-                        Rectangle {
-                            background: #0d1011cc;
-                            border-radius: 8px;
-                            border-width: 1px;
-                            border-color: #ffffff20;
+                        GlassCard {
                             horizontal-stretch: 1;
                             VerticalLayout {
-                                padding: 14px;
-                                spacing: 8px;
+                                padding: 16px;
+                                spacing: 10px;
                                 alignment: start;
                                 Text { text: "Updates 1.0.17"; color: #ffffff; font-size: 14px; font-weight: 700; }
+                                Rectangle { height: 1px; background: #ffffff14; }
                                 Text {
                                     text: "• New native Slint GUI\n• Monochrome #0d1011 theme\n• Blurred background & stats";
                                     color: #9ca3af;
@@ -287,39 +301,33 @@ export component MainWindow inherits Window {
                         }
 
                         // Playing stats
-                        Rectangle {
-                            background: #0d1011cc;
-                            border-radius: 8px;
-                            border-width: 1px;
-                            border-color: #ffffff20;
+                        GlassCard {
                             horizontal-stretch: 1;
                             VerticalLayout {
-                                padding: 14px;
-                                spacing: 8px;
+                                padding: 16px;
+                                spacing: 10px;
                                 alignment: start;
                                 Text { text: "Playing"; color: #ffffff; font-size: 14px; font-weight: 700; }
+                                Rectangle { height: 1px; background: #ffffff14; }
                                 for item in playing-stats : HorizontalLayout {
                                     Text { text: item.label; color: #9ca3af; width: 95px; font-size: 12px; }
-                                    Text { text: item.value; color: #ffffff; font-size: 12px; }
+                                    Text { text: item.value; color: #ffffff; font-size: 12px; font-weight: 600; overflow: elide; }
                                 }
                             }
                         }
 
                         // Storage stats
-                        Rectangle {
-                            background: #0d1011cc;
-                            border-radius: 8px;
-                            border-width: 1px;
-                            border-color: #ffffff20;
+                        GlassCard {
                             horizontal-stretch: 1;
                             VerticalLayout {
-                                padding: 14px;
-                                spacing: 8px;
+                                padding: 16px;
+                                spacing: 10px;
                                 alignment: start;
                                 Text { text: "Storage"; color: #ffffff; font-size: 14px; font-weight: 700; }
+                                Rectangle { height: 1px; background: #ffffff14; }
                                 for item in storage-stats : HorizontalLayout {
                                     Text { text: item.label; color: #9ca3af; width: 100px; font-size: 12px; }
-                                    Text { text: item.value; color: #ffffff; font-size: 12px; }
+                                    Text { text: item.value; color: #ffffff; font-size: 12px; font-weight: 600; overflow: elide; }
                                 }
                             }
                         }
@@ -330,24 +338,25 @@ export component MainWindow inherits Window {
                         spacing: 14px;
 
                         // Текущий скин + загрузка
-                        Rectangle {
+                        GlassCard {
                             width: 260px;
-                            background: #0d1011cc;
-                            border-radius: 8px;
-                            border-width: 1px;
-                            border-color: #ffffff20;
 
                             VerticalLayout {
-                                padding: 14px;
+                                padding: 16px;
                                 spacing: 12px;
                                 alignment: start;
 
-                                Text { text: "Current Skin"; color: #ffffff; font-size: 14px; font-weight: 700; }
+                                HorizontalLayout {
+                                    Text { text: "Current Skin"; color: #ffffff; font-size: 14px; font-weight: 700; horizontal-stretch: 1; }
+                                    if has-skin : Text { text: "Drag to rotate"; color: #6b7280; font-size: 11px; vertical-alignment: center; }
+                                }
 
                                 if has-skin : Rectangle {
                                     width: 180px;
                                     height: 224px;
                                     x: (parent.width - self.width) / 2;
+                                    border-radius: 8px;
+                                    background: #ffffff06;
 
                                     Image {
                                         source: root.skin-preview;
@@ -356,6 +365,7 @@ export component MainWindow inherits Window {
                                     }
 
                                     skin-drag := TouchArea {
+                                        mouse-cursor: grab;
                                         property <length> last-x;
                                         property <length> last-y;
                                         pointer-event(e) => {
@@ -400,15 +410,11 @@ export component MainWindow inherits Window {
                         }
 
                         // Библиотека прошлых скинов
-                        Rectangle {
+                        GlassCard {
                             horizontal-stretch: 1;
-                            background: #0d1011cc;
-                            border-radius: 8px;
-                            border-width: 1px;
-                            border-color: #ffffff20;
 
                             VerticalLayout {
-                                padding: 14px;
+                                padding: 16px;
                                 spacing: 10px;
                                 alignment: start;
 
@@ -430,9 +436,13 @@ export component MainWindow inherits Window {
                                             border-radius: 6px;
                                             background: hist-touch.has-hover ? #ffffff18 : #ffffff0a;
                                             border-width: 1px;
-                                            border-color: #ffffff18;
+                                            border-color: hist-touch.has-hover ? #ffffff30 : #ffffff18;
+
+                                            animate background { duration: 120ms; }
+                                            animate border-color { duration: 120ms; }
 
                                             hist-touch := TouchArea {
+                                                mouse-cursor: pointer;
                                                 clicked => { root.select-history-skin(item.name); }
                                             }
 
@@ -465,7 +475,7 @@ export component MainWindow inherits Window {
 
             // Right Sidebar
             Rectangle {
-                width: 160px;
+                width: 168px;
                 background: #0d1011cc;
                 border-width: 1px;
                 border-color: #ffffff1a;
@@ -473,9 +483,41 @@ export component MainWindow inherits Window {
                 VerticalLayout {
                     padding: 12px;
                     spacing: 6px;
-                    alignment: start;
 
                     NavButton { label: "Main"; active: active-tab == 0; clicked => { active-tab = 0; tab-changed(0); } }
+                    NavButton { label: "Skins"; active: active-tab == 4; clicked => { active-tab = 4; tab-changed(4); } }
+
+                    Rectangle { vertical-stretch: 1; }
+
+                    Rectangle {
+                        height: 30px;
+                        border-radius: 6px;
+                        background: #ffffff0a;
+                        border-width: 1px;
+                        border-color: #ffffff14;
+
+                        HorizontalLayout {
+                            padding-left: 10px;
+                            padding-right: 10px;
+                            spacing: 6px;
+
+                            Rectangle {
+                                width: 6px;
+                                height: 6px;
+                                y: (parent.height - self.height) / 2;
+                                border-radius: 3px;
+                                background: #22c55e;
+                            }
+
+                            Text {
+                                text: root.status;
+                                color: #d1d5db;
+                                font-size: 11px;
+                                overflow: elide;
+                                vertical-alignment: center;
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -520,7 +562,11 @@ export component MainWindow inherits Window {
                     border-width: 1px;
                     border-color: active-tab == 4 ? #ffffff : #ffffff28;
 
+                    animate background { duration: 120ms; }
+                    animate border-color { duration: 120ms; }
+
                     skin-touch := TouchArea {
+                        mouse-cursor: pointer;
                         clicked => {
                             active-tab = active-tab == 4 ? 0 : 4;
                             tab-changed(active-tab);
