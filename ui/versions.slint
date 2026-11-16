@@ -1,0 +1,322 @@
+import { ScrollView } from "std-widgets.slint";
+
+export struct VersionItem {
+    id: string,
+    kind: string,
+}
+
+component VerBtn inherits Rectangle {
+    in property <string> label;
+    in property <bool> primary: false;
+    in property <bool> danger: false;
+    callback clicked();
+
+    height: 28px;
+    min-width: 56px;
+    border-radius: 6px;
+    background: danger ? (touch.has-hover ? #7f1d1d : #450a0a)
+              : primary ? (touch.has-hover ? #e5e7eb : #ffffff)
+              : (touch.has-hover ? #ffffff22 : #ffffff12);
+    border-width: 1px;
+    border-color: danger ? #ef4444 : (primary ? #ffffff : #ffffff28);
+
+    animate background { duration: 120ms; }
+
+    touch := TouchArea {
+        mouse-cursor: pointer;
+        clicked => { root.clicked(); }
+    }
+
+    Text {
+        text: label;
+        color: primary ? #0d1011 : (danger ? #fca5a5 : #ffffff);
+        font-size: 11px;
+        font-weight: 600;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+    }
+}
+
+component FilterChip inherits Rectangle {
+    in property <string> label;
+    in property <bool> active;
+    callback clicked();
+
+    height: 26px;
+    min-width: 58px;
+    border-radius: 6px;
+    background: active ? #ffffff : (touch.has-hover ? #ffffff18 : #ffffff0a);
+    border-width: 1px;
+    border-color: active ? #ffffff : #ffffff18;
+
+    animate background { duration: 120ms; }
+
+    touch := TouchArea {
+        mouse-cursor: pointer;
+        clicked => { root.clicked(); }
+    }
+
+    Text {
+        text: label;
+        color: active ? #0d1011 : #d1d5db;
+        font-size: 11px;
+        font-weight: active ? 700 : 500;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+    }
+}
+
+export component VersionsTab inherits HorizontalLayout {
+    in property <[string]> installed-versions: [];
+    in-out property <string> selected-version: "";
+    in property <[VersionItem]> remote-versions: [];
+
+    // 0 = All, 1 = Release, 2 = Other (Snapshots/etc)
+    property <int> kind-filter: 0;
+
+    callback fetch-versions();
+    callback install-version(string);
+    callback install-fabric(string);
+    callback delete-version(string);
+    callback launch-version(string);
+
+    spacing: 14px;
+    vertical-stretch: 1;
+
+    // Левая колонка: установленные версии
+    Rectangle {
+        width: 270px;
+        background: #0d1011cc;
+        border-radius: 10px;
+        border-width: 1px;
+        border-color: #ffffff20;
+
+        VerticalLayout {
+            padding: 16px;
+            spacing: 10px;
+
+            HorizontalLayout {
+                Text {
+                    text: "Installed";
+                    color: #ffffff;
+                    font-size: 14px;
+                    font-weight: 700;
+                    horizontal-stretch: 1;
+                    vertical-alignment: center;
+                }
+                Text {
+                    text: installed-versions.length;
+                    color: #9ca3af;
+                    font-size: 12px;
+                    vertical-alignment: center;
+                }
+            }
+
+            Rectangle { height: 1px; background: #ffffff14; }
+
+            if installed-versions.length == 0 : Text {
+                text: "No versions installed yet.\nFetch and install one on the right →";
+                color: #9ca3af;
+                font-size: 12px;
+                wrap: word-wrap;
+            }
+
+            ScrollView {
+                vertical-stretch: 1;
+                VerticalLayout {
+                    spacing: 6px;
+                    alignment: start;
+
+                    for ver in installed-versions : Rectangle {
+                        height: 44px;
+                        border-radius: 6px;
+                        background: ver == selected-version ? #ffffff18 : (inst-touch.has-hover ? #ffffff12 : #ffffff08);
+                        border-width: 1px;
+                        border-color: ver == selected-version ? #ffffff55 : #ffffff14;
+
+                        animate background { duration: 120ms; }
+                        animate border-color { duration: 120ms; }
+
+                        inst-touch := TouchArea {
+                            mouse-cursor: pointer;
+                            clicked => { selected-version = ver; }
+                        }
+
+                        HorizontalLayout {
+                            padding-left: 10px;
+                            padding-right: 8px;
+                            spacing: 6px;
+
+                            Text {
+                                text: ver;
+                                color: #ffffff;
+                                font-size: 12px;
+                                font-weight: ver == selected-version ? 700 : 500;
+                                overflow: elide;
+                                horizontal-stretch: 1;
+                                vertical-alignment: center;
+                            }
+
+                            VerBtn {
+                                label: "Play";
+                                primary: true;
+                                min-width: 46px;
+                                y: (parent.height - self.height) / 2;
+                                clicked => {
+                                    selected-version = ver;
+                                    root.launch-version(ver);
+                                }
+                            }
+
+                            VerBtn {
+                                label: "×";
+                                danger: true;
+                                min-width: 28px;
+                                y: (parent.height - self.height) / 2;
+                                clicked => { root.delete-version(ver); }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // Правая колонка: доступные для скачивания
+    Rectangle {
+        horizontal-stretch: 1;
+        background: #0d1011cc;
+        border-radius: 10px;
+        border-width: 1px;
+        border-color: #ffffff20;
+
+        VerticalLayout {
+            padding: 16px;
+            spacing: 10px;
+
+            HorizontalLayout {
+                spacing: 8px;
+
+                Text {
+                    text: "Download Versions";
+                    color: #ffffff;
+                    font-size: 14px;
+                    font-weight: 700;
+                    horizontal-stretch: 1;
+                    vertical-alignment: center;
+                }
+
+                FilterChip { label: "All"; active: kind-filter == 0; clicked => { kind-filter = 0; } }
+                FilterChip { label: "Release"; active: kind-filter == 1; clicked => { kind-filter = 1; } }
+                FilterChip { label: "Snapshot"; active: kind-filter == 2; clicked => { kind-filter = 2; } }
+
+                VerBtn {
+                    label: "Refresh";
+                    primary: true;
+                    min-width: 68px;
+                    clicked => { root.fetch-versions(); }
+                }
+            }
+
+            Rectangle { height: 1px; background: #ffffff14; }
+
+            if remote-versions.length == 0 : VerticalLayout {
+                vertical-stretch: 1;
+                alignment: center;
+                spacing: 10px;
+
+                Text {
+                    text: "Version list is empty";
+                    color: #9ca3af;
+                    font-size: 13px;
+                    horizontal-alignment: center;
+                }
+                HorizontalLayout {
+                    alignment: center;
+                    VerBtn {
+                        label: "Fetch Versions";
+                        primary: true;
+                        min-width: 120px;
+                        height: 32px;
+                        clicked => { root.fetch-versions(); }
+                    }
+                }
+            }
+
+            if remote-versions.length > 0 : ScrollView {
+                vertical-stretch: 1;
+                VerticalLayout {
+                    spacing: 6px;
+                    alignment: start;
+
+                    for item in remote-versions : Rectangle {
+                        visible: kind-filter == 0
+                              || (kind-filter == 1 && item.kind == "release")
+                              || (kind-filter == 2 && item.kind != "release");
+                        height: self.visible ? 44px : 0px;
+                        clip: true;
+
+                        border-radius: 6px;
+                        background: rem-touch.has-hover ? #ffffff14 : #ffffff08;
+                        border-width: 1px;
+                        border-color: rem-touch.has-hover ? #ffffff28 : #ffffff14;
+
+                        animate background { duration: 120ms; }
+
+                        rem-touch := TouchArea {}
+
+                        HorizontalLayout {
+                            padding-left: 12px;
+                            padding-right: 10px;
+                            spacing: 8px;
+
+                            Text {
+                                text: item.id;
+                                color: #ffffff;
+                                font-size: 13px;
+                                font-weight: 600;
+                                vertical-alignment: center;
+                                horizontal-stretch: 1;
+                                overflow: elide;
+                            }
+
+                            Rectangle {
+                                width: 68px;
+                                height: 22px;
+                                y: (parent.height - self.height) / 2;
+                                border-radius: 4px;
+                                background: item.kind == "release" ? #22c55e22 : #f59e0b22;
+                                border-width: 1px;
+                                border-color: item.kind == "release" ? #22c55e55 : #f59e0b55;
+
+                                Text {
+                                    text: item.kind;
+                                    color: item.kind == "release" ? #86efac : #fcd34d;
+                                    font-size: 10px;
+                                    font-weight: 600;
+                                    horizontal-alignment: center;
+                                    vertical-alignment: center;
+                                }
+                            }
+
+                            VerBtn {
+                                label: "Install";
+                                primary: true;
+                                min-width: 64px;
+                                y: (parent.height - self.height) / 2;
+                                clicked => { root.install-version(item.id); }
+                            }
+
+                            VerBtn {
+                                label: "Fabric";
+                                min-width: 58px;
+                                y: (parent.height - self.height) / 2;
+                                clicked => { root.install-fabric(item.id); }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

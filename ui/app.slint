@@ -1,15 +1,12 @@
 import { ComboBox, LineEdit, ScrollView } from "std-widgets.slint";
+import { VersionsTab, VersionItem } from "versions.slint";
+
+export { VersionItem }
 
 export struct ModItem {
     name: string,
     enabled: bool,
 }
-
-export struct VersionItem {
-    id: string,
-    kind: string,
-}
-
 export struct JavaItem {
     major: int,
     installed: bool,
@@ -276,7 +273,6 @@ export component MainWindow inherits Window {
                 VerticalLayout {
                     padding: 18px;
                     spacing: 14px;
-                    alignment: start;
 
                     // 0: Main
                     if active-tab == 0 : HorizontalLayout {
@@ -331,6 +327,18 @@ export component MainWindow inherits Window {
                                 }
                             }
                         }
+                    }
+
+                    // 1: Versions
+                    if active-tab == 1 : VersionsTab {
+                        installed-versions: root.installed-versions;
+                        selected-version <=> root.selected-version;
+                        remote-versions: root.remote-versions;
+                        fetch-versions => { root.fetch-versions(); }
+                        install-version(v) => { root.install-version(v); }
+                        install-fabric(v) => { root.install-fabric(v); }
+                        delete-version(v) => { root.delete-version(v); }
+                        launch-version(v) => { root.launch-version(v); }
                     }
 
                     // 4: Skins
@@ -485,6 +493,7 @@ export component MainWindow inherits Window {
                     spacing: 6px;
 
                     NavButton { label: "Main"; active: active-tab == 0; clicked => { active-tab = 0; tab-changed(0); } }
+                    NavButton { label: "Versions"; active: active-tab == 1; clicked => { active-tab = 1; tab-changed(1); } }
                     NavButton { label: "Skins"; active: active-tab == 4; clicked => { active-tab = 4; tab-changed(4); } }
 
                     Rectangle { vertical-stretch: 1; }
