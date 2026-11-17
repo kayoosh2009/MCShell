@@ -224,8 +224,10 @@ export component MainWindow inherits Window {
     callback tab-changed(int);
     callback save-username(string);
     callback fetch-versions();
+    callback search-versions(string);
     callback install-version(string);
     callback install-fabric(string);
+    callback install-forge(string);
     callback delete-version(string);
     callback launch-version(string);
     callback toggle-mod(int);
@@ -335,8 +337,10 @@ export component MainWindow inherits Window {
                         selected-version <=> root.selected-version;
                         remote-versions: root.remote-versions;
                         fetch-versions => { root.fetch-versions(); }
+                        search-versions(q) => { root.search-versions(q); }
                         install-version(v) => { root.install-version(v); }
                         install-fabric(v) => { root.install-fabric(v); }
+                        install-forge(v) => { root.install-forge(v); }
                         delete-version(v) => { root.delete-version(v); }
                         launch-version(v) => { root.launch-version(v); }
                     }
