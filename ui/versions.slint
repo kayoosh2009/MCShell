@@ -1,4 +1,4 @@
-import { ScrollView } from "std-widgets.slint";
+import { LineEdit, ScrollView } from "std-widgets.slint";
 
 export struct VersionItem {
     id: string,
@@ -66,22 +66,36 @@ component FilterChip inherits Rectangle {
     }
 }
 
-export component VersionsTab inherits HorizontalLayout {
+export component VersionsTab inherits Rectangle {
     in property <[string]> installed-versions: [];
     in-out property <string> selected-version: "";
     in property <[VersionItem]> remote-versions: [];
+    in-out property <string> search-query: "";
 
-    // 0 = All, 1 = Release, 2 = Other (Snapshots/etc)
+    // 0 = All, 1 = Release, 2 = Snapshots
     property <int> kind-filter: 0;
+    property <int> page-size: 25;
+    property <int> current-page: 0;
+    property <int> total-pages: max(1, ceil(remote-versions.length / page-size));
+
+    property <bool> download-modal-open: false;
+    property <string> download-target-version: "";
 
     callback fetch-versions();
+    callback search-versions(string);
     callback install-version(string);
     callback install-fabric(string);
+    callback install-forge(string);
     callback delete-version(string);
     callback launch-version(string);
 
-    spacing: 14px;
     vertical-stretch: 1;
+    background: transparent;
+
+    HorizontalLayout {
+        spacing: 14px;
+        width: 100%;
+        height: 100%;
 
     // Левая колонка: установленные версии
     Rectangle {
@@ -183,137 +197,309 @@ export component VersionsTab inherits HorizontalLayout {
     }
 
     // Правая колонка: доступные для скачивания
-    Rectangle {
-        horizontal-stretch: 1;
-        background: #0d1011cc;
-        border-radius: 10px;
-        border-width: 1px;
-        border-color: #ffffff20;
+        Rectangle {
+            horizontal-stretch: 1;
+            background: #0d1011cc;
+            border-radius: 10px;
+            border-width: 1px;
+            border-color: #ffffff20;
 
-        VerticalLayout {
-            padding: 16px;
-            spacing: 10px;
-
-            HorizontalLayout {
-                spacing: 8px;
-
-                Text {
-                    text: "Download Versions";
-                    color: #ffffff;
-                    font-size: 14px;
-                    font-weight: 700;
-                    horizontal-stretch: 1;
-                    vertical-alignment: center;
-                }
-
-                FilterChip { label: "All"; active: kind-filter == 0; clicked => { kind-filter = 0; } }
-                FilterChip { label: "Release"; active: kind-filter == 1; clicked => { kind-filter = 1; } }
-                FilterChip { label: "Snapshot"; active: kind-filter == 2; clicked => { kind-filter = 2; } }
-
-                VerBtn {
-                    label: "Refresh";
-                    primary: true;
-                    min-width: 68px;
-                    clicked => { root.fetch-versions(); }
-                }
-            }
-
-            Rectangle { height: 1px; background: #ffffff14; }
-
-            if remote-versions.length == 0 : VerticalLayout {
-                vertical-stretch: 1;
-                alignment: center;
+            VerticalLayout {
+                padding: 16px;
                 spacing: 10px;
 
-                Text {
-                    text: "Version list is empty";
-                    color: #9ca3af;
-                    font-size: 13px;
-                    horizontal-alignment: center;
-                }
                 HorizontalLayout {
-                    alignment: center;
+                    spacing: 8px;
+
+                    Text {
+                        text: "Download Versions";
+                        color: #ffffff;
+                        font-size: 14px;
+                        font-weight: 700;
+                        horizontal-stretch: 1;
+                        vertical-alignment: center;
+                    }
+
+                    FilterChip { label: "All"; active: kind-filter == 0; clicked => { kind-filter = 0; current-page = 0; } }
+                    FilterChip { label: "Releases"; active: kind-filter == 1; clicked => { kind-filter = 1; current-page = 0; } }
+                    FilterChip { label: "Snapshots"; active: kind-filter == 2; clicked => { kind-filter = 2; current-page = 0; } }
+
                     VerBtn {
-                        label: "Fetch Versions";
+                        label: "Refresh";
                         primary: true;
-                        min-width: 120px;
-                        height: 32px;
-                        clicked => { root.fetch-versions(); }
+                        min-width: 68px;
+                        clicked => {
+                            current-page = 0;
+                            root.fetch-versions();
+                        }
+                    }
+                }
+
+                // Поисковик версий
+                LineEdit {
+                    text <=> root.search-query;
+                    placeholder-text: "Search version (e.g. 1.20.4, 24w14a)...";
+                    height: 32px;
+                    edited(q) => {
+                        current-page = 0;
+                        root.search-versions(q);
+                    }
+                    accepted(q) => {
+                        current-page = 0;
+                        root.search-versions(q);
+                    }
+                }
+
+                Rectangle { height: 1px; background: #ffffff14; }
+
+                if remote-versions.length == 0 : VerticalLayout {
+                    vertical-stretch: 1;
+                    alignment: center;
+                    spacing: 10px;
+
+                    Text {
+                        text: "Version list is empty";
+                        color: #9ca3af;
+                        font-size: 13px;
+                        horizontal-alignment: center;
+                    }
+                    HorizontalLayout {
+                        alignment: center;
+                        VerBtn {
+                            label: "Fetch Versions";
+                            primary: true;
+                            min-width: 120px;
+                            height: 32px;
+                            clicked => { root.fetch-versions(); }
+                        }
+                    }
+                }
+
+                if remote-versions.length > 0 : ScrollView {
+                    vertical-stretch: 1;
+                    VerticalLayout {
+                        spacing: 6px;
+                        alignment: start;
+
+                        for item[idx] in remote-versions : Rectangle {
+                            visible: idx >= current-page * page-size
+                                  && idx < (current-page + 1) * page-size
+                                  && (kind-filter == 0
+                                      || (kind-filter == 1 && item.kind == "release")
+                                      || (kind-filter == 2 && item.kind != "release"));
+                            height: self.visible ? 44px : 0px;
+                            clip: true;
+
+                            border-radius: 6px;
+                            background: rem-touch.has-hover ? #ffffff14 : #ffffff08;
+                            border-width: 1px;
+                            border-color: rem-touch.has-hover ? #ffffff28 : #ffffff14;
+
+                            animate background { duration: 120ms; }
+
+                            rem-touch := TouchArea {}
+
+                            HorizontalLayout {
+                                padding-left: 12px;
+                                padding-right: 10px;
+                                spacing: 8px;
+
+                                Text {
+                                    text: item.id;
+                                    color: #ffffff;
+                                    font-size: 13px;
+                                    font-weight: 600;
+                                    vertical-alignment: center;
+                                    horizontal-stretch: 1;
+                                    overflow: elide;
+                                }
+
+                                Rectangle {
+                                    width: 68px;
+                                    height: 22px;
+                                    y: (parent.height - self.height) / 2;
+                                    border-radius: 4px;
+                                    background: item.kind == "release" ? #22c55e22 : #f59e0b22;
+                                    border-width: 1px;
+                                    border-color: item.kind == "release" ? #22c55e55 : #f59e0b55;
+
+                                    Text {
+                                        text: item.kind;
+                                        color: item.kind == "release" ? #86efac : #fcd34d;
+                                        font-size: 10px;
+                                        font-weight: 600;
+                                        horizontal-alignment: center;
+                                        vertical-alignment: center;
+                                    }
+                                }
+
+                                // Белая кнопка с иконкой скачать
+                                Rectangle {
+                                    width: 32px;
+                                    height: 28px;
+                                    y: (parent.height - self.height) / 2;
+                                    border-radius: 6px;
+                                    background: dl-touch.has-hover ? #e5e7eb : #ffffff;
+
+                                    animate background { duration: 120ms; }
+
+                                    dl-touch := TouchArea {
+                                        mouse-cursor: pointer;
+                                        clicked => {
+                                            download-target-version = item.id;
+                                            download-modal-open = true;
+                                        }
+                                    }
+
+                                    Image {
+                                        source: @image-url("icons/download.png");
+                                        width: 15px;
+                                        height: 15px;
+                                        x: (parent.width - self.width) / 2;
+                                        y: (parent.height - self.height) / 2;
+                                        colorize: #0d1011;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Пагинация (по 25 версий)
+                if remote-versions.length > page-size : HorizontalLayout {
+                    spacing: 6px;
+                    alignment: center;
+
+                    VerBtn {
+                        label: "First";
+                        min-width: 52px;
+                        clicked => { current-page = 0; }
+                    }
+                    VerBtn {
+                        label: "Prev";
+                        min-width: 52px;
+                        clicked => {
+                            if current-page > 0 { current-page -= 1; }
+                        }
+                    }
+
+                    Rectangle {
+                        height: 28px;
+                        min-width: 86px;
+                        border-radius: 6px;
+                        background: #ffffff0a;
+                        border-width: 1px;
+                        border-color: #ffffff18;
+
+                        Text {
+                            text: (current-page + 1) + " / " + total-pages;
+                            color: #ffffff;
+                            font-size: 11px;
+                            font-weight: 600;
+                            horizontal-alignment: center;
+                            vertical-alignment: center;
+                        }
+                    }
+
+                    VerBtn {
+                        label: "Next";
+                        min-width: 52px;
+                        clicked => {
+                            if current-page + 1 < total-pages { current-page += 1; }
+                        }
+                    }
+                    VerBtn {
+                        label: "Last";
+                        min-width: 52px;
+                        clicked => { current-page = total-pages - 1; }
                     }
                 }
             }
+        }
+    }
 
-            if remote-versions.length > 0 : ScrollView {
-                vertical-stretch: 1;
-                VerticalLayout {
-                    spacing: 6px;
-                    alignment: start;
+    // Модалка выбора загрузчика (Vanilla / Fabric / Forge)
+    if download-modal-open : Rectangle {
+        width: 100%;
+        height: 100%;
+        background: #000000aa;
+        border-radius: 10px;
 
-                    for item in remote-versions : Rectangle {
-                        visible: kind-filter == 0
-                              || (kind-filter == 1 && item.kind == "release")
-                              || (kind-filter == 2 && item.kind != "release");
-                        height: self.visible ? 44px : 0px;
-                        clip: true;
+        TouchArea {
+            clicked => { download-modal-open = false; }
+        }
 
-                        border-radius: 6px;
-                        background: rem-touch.has-hover ? #ffffff14 : #ffffff08;
-                        border-width: 1px;
-                        border-color: rem-touch.has-hover ? #ffffff28 : #ffffff14;
+        Rectangle {
+            width: 340px;
+            height: 210px;
+            x: (parent.width - self.width) / 2;
+            y: (parent.height - self.height) / 2;
+            background: #121619;
+            border-radius: 12px;
+            border-width: 1px;
+            border-color: #ffffff30;
 
-                        animate background { duration: 120ms; }
+            TouchArea {}
 
-                        rem-touch := TouchArea {}
+            VerticalLayout {
+                padding: 18px;
+                spacing: 12px;
 
-                        HorizontalLayout {
-                            padding-left: 12px;
-                            padding-right: 10px;
-                            spacing: 8px;
+                Text {
+                    text: "Download " + download-target-version;
+                    color: #ffffff;
+                    font-size: 15px;
+                    font-weight: 700;
+                    horizontal-alignment: center;
+                }
 
-                            Text {
-                                text: item.id;
-                                color: #ffffff;
-                                font-size: 13px;
-                                font-weight: 600;
-                                vertical-alignment: center;
-                                horizontal-stretch: 1;
-                                overflow: elide;
-                            }
+                Text {
+                    text: "Choose edition / loader to install:";
+                    color: #9ca3af;
+                    font-size: 12px;
+                    horizontal-alignment: center;
+                }
 
-                            Rectangle {
-                                width: 68px;
-                                height: 22px;
-                                y: (parent.height - self.height) / 2;
-                                border-radius: 4px;
-                                background: item.kind == "release" ? #22c55e22 : #f59e0b22;
-                                border-width: 1px;
-                                border-color: item.kind == "release" ? #22c55e55 : #f59e0b55;
+                HorizontalLayout {
+                    spacing: 8px;
+                    vertical-stretch: 1;
 
-                                Text {
-                                    text: item.kind;
-                                    color: item.kind == "release" ? #86efac : #fcd34d;
-                                    font-size: 10px;
-                                    font-weight: 600;
-                                    horizontal-alignment: center;
-                                    vertical-alignment: center;
-                                }
-                            }
-
-                            VerBtn {
-                                label: "Install";
-                                primary: true;
-                                min-width: 64px;
-                                y: (parent.height - self.height) / 2;
-                                clicked => { root.install-version(item.id); }
-                            }
-
-                            VerBtn {
-                                label: "Fabric";
-                                min-width: 58px;
-                                y: (parent.height - self.height) / 2;
-                                clicked => { root.install-fabric(item.id); }
-                            }
+                    VerBtn {
+                        label: "Vanilla";
+                        primary: true;
+                        height: 40px;
+                        horizontal-stretch: 1;
+                        clicked => {
+                            download-modal-open = false;
+                            root.install-version(download-target-version);
                         }
+                    }
+                    VerBtn {
+                        label: "Fabric";
+                        height: 40px;
+                        horizontal-stretch: 1;
+                        clicked => {
+                            download-modal-open = false;
+                            root.install-fabric(download-target-version);
+                        }
+                    }
+                    VerBtn {
+                        label: "Forge";
+                        height: 40px;
+                        horizontal-stretch: 1;
+                        clicked => {
+                            download-modal-open = false;
+                            root.install-forge(download-target-version);
+                        }
+                    }
+                }
+
+                HorizontalLayout {
+                    alignment: center;
+                    VerBtn {
+                        label: "Cancel";
+                        min-width: 90px;
+                        clicked => { download-modal-open = false; }
                     }
                 }
             }
