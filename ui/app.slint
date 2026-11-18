@@ -1,12 +1,9 @@
 import { ComboBox, LineEdit, ScrollView } from "std-widgets.slint";
 import { VersionsTab, VersionItem } from "versions.slint";
+import { FilesTab, ModItem, PackItem } from "files.slint";
+import { ExploreTab, ExploreItem } from "explore.slint";
 
-export { VersionItem }
-
-export struct ModItem {
-    name: string,
-    enabled: bool,
-}
+export { VersionItem, ModItem, PackItem, ExploreItem }
 export struct JavaItem {
     major: int,
     installed: bool,
@@ -188,10 +185,12 @@ export component MainWindow inherits Window {
     in property <[VersionItem]> remote-versions: [];
     in-out property <string> version-search: "";
 
-    // Content lists
+    // Content lists & Explore
     in property <[ModItem]> mods: [];
-    in property <[string]> packs: [];
+    in property <[PackItem]> packs: [];
     in property <[string]> worlds: [];
+    in-out property <string> files-search: "";
+    in property <[ExploreItem]> explore-items: [];
 
     // Skins
     in property <bool> has-skin: false;
@@ -234,6 +233,9 @@ export component MainWindow inherits Window {
     callback toggle-mod(int);
     callback delete-mod(int);
     callback open-mods-folder();
+    callback search-files(string);
+    callback search-explore(string, int);
+    callback download-explore(string, string);
     callback browse-online();
     callback delete-pack(int);
     callback open-packs-folder();
@@ -344,6 +346,27 @@ export component MainWindow inherits Window {
                         install-forge(v) => { root.install-forge(v); }
                         delete-version(v) => { root.delete-version(v); }
                         launch-version(v) => { root.launch-version(v); }
+                    }
+
+                    // 2: Files (Mods & Resource Packs)
+                    if active-tab == 2 : FilesTab {
+                        mods: root.mods;
+                        packs: root.packs;
+                        search-files(q) => { root.search-files(q); }
+                        toggle-mod(i) => { root.toggle-mod(i); }
+                        delete-mod(i) => { root.delete-mod(i); }
+                        open-mods-folder => { root.open-mods-folder(); }
+                        delete-pack(i) => { root.delete-pack(i); }
+                        open-packs-folder => { root.open-packs-folder(); }
+                        open-explore => { active-tab = 3; tab-changed(3); }
+                    }
+
+                    // 3: Explore (Download Mods & Packs)
+                    if active-tab == 3 : ExploreTab {
+                        items: root.explore-items;
+                        search-explore(q, k) => { root.search-explore(q, k); }
+                        download-explore(id, kind) => { root.download-explore(id, kind); }
+                        browse-online => { root.browse-online(); }
                     }
 
                     // 4: Skins
@@ -499,6 +522,8 @@ export component MainWindow inherits Window {
 
                     NavButton { label: "Main"; active: active-tab == 0; clicked => { active-tab = 0; tab-changed(0); } }
                     NavButton { label: "Versions"; active: active-tab == 1; clicked => { active-tab = 1; tab-changed(1); } }
+                    NavButton { label: "Files"; active: active-tab == 2; clicked => { active-tab = 2; tab-changed(2); } }
+                    NavButton { label: "Explore"; active: active-tab == 3; clicked => { active-tab = 3; tab-changed(3); } }
                     NavButton { label: "Skins"; active: active-tab == 4; clicked => { active-tab = 4; tab-changed(4); } }
 
                     Rectangle { vertical-stretch: 1; }

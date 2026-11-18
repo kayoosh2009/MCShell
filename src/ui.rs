@@ -92,17 +92,30 @@ fn sync_ui(win: &MainWindow, app: &App) {
         .collect();
     win.set_remote_versions(ModelRc::from(Rc::new(VecModel::from(remote))));
 
+    let files_q = win.get_files_search().trim().to_lowercase();
     let mods_list: Vec<ModItem> = app
         .mods
         .iter()
-        .map(|m| ModItem {
+        .enumerate()
+        .filter(|(_, m)| files_q.is_empty() || m.name.to_lowercase().contains(&files_q))
+        .map(|(i, m)| ModItem {
             name: SharedString::from(m.name.as_str()),
             enabled: m.enabled,
+            index: i as i32,
         })
         .collect();
     win.set_mods(ModelRc::from(Rc::new(VecModel::from(mods_list))));
 
-    let packs: Vec<SharedString> = app.packs.iter().map(SharedString::from).collect();
+    let packs: Vec<PackItem> = app
+        .packs
+        .iter()
+        .enumerate()
+        .filter(|(_, p)| files_q.is_empty() || p.to_lowercase().contains(&files_q))
+        .map(|(i, p)| PackItem {
+            name: SharedString::from(p.as_str()),
+            index: i as i32,
+        })
+        .collect();
     win.set_packs(ModelRc::from(Rc::new(VecModel::from(packs))));
 
     let worlds: Vec<SharedString> = app.worlds.iter().map(SharedString::from).collect();
@@ -324,6 +337,43 @@ pub fn run() -> Result<()> {
         win.on_delete_mod(move |idx| {
             let mut a = app.borrow_mut();
             a.delete_mod(idx as usize);
+            if let Some(w) = weak.upgrade() {
+                sync_ui(&w, &a);
+            }
+        });
+    }
+
+    {
+        let app = Rc::clone(&app);
+        let weak = win.as_weak();
+        win.on_search_files(move |q| {
+            let a = app.borrow();
+            if let Some(w) = weak.upgrade() {
+                w.set_files_search(q);
+                sync_ui(&w, &a);
+            }
+        });
+    }
+
+    {
+        let app = Rc::clone(&app);
+        let weak = win.as_weak();
+        win.on_search_explore(move |q, kind| {
+            let mut a = app.borrow_mut();
+            let what = if kind == 0 { "mods" } else { "resource packs" };
+            a.status = format!("explore {what}: '{q}' (connect API next)");
+            if let Some(w) = weak.upgrade() {
+                sync_ui(&w, &a);
+            }
+        });
+    }
+
+    {
+        let app = Rc::clone(&app);
+        let weak = win.as_weak();
+        win.on_download_explore(move |id, kind| {
+            let mut a = app.borrow_mut();
+            a.status = format!("download {kind} {id} (connect API next)");
             if let Some(w) = weak.upgrade() {
                 sync_ui(&w, &a);
             }
