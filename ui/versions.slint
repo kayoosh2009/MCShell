@@ -43,7 +43,7 @@ component FilterChip inherits Rectangle {
     callback clicked();
 
     height: 26px;
-    min-width: 58px;
+    min-width: 54px;
     border-radius: 6px;
     background: active ? #ffffff : (touch.has-hover ? #ffffff18 : #ffffff0a);
     border-width: 1px;
@@ -56,13 +56,18 @@ component FilterChip inherits Rectangle {
         clicked => { root.clicked(); }
     }
 
-    Text {
-        text: label;
-        color: active ? #0d1011 : #d1d5db;
-        font-size: 11px;
-        font-weight: active ? 700 : 500;
-        horizontal-alignment: center;
-        vertical-alignment: center;
+    HorizontalLayout {
+        padding-left: 10px;
+        padding-right: 10px;
+
+        Text {
+            text: label;
+            color: active ? #0d1011 : #d1d5db;
+            font-size: 11px;
+            font-weight: active ? 700 : 500;
+            horizontal-alignment: center;
+            vertical-alignment: center;
+        }
     }
 }
 
@@ -277,84 +282,89 @@ export component VersionsTab inherits Rectangle {
                 if remote-versions.length > 0 : ScrollView {
                     vertical-stretch: 1;
                     VerticalLayout {
-                        spacing: 6px;
+                        spacing: 0px;
                         alignment: start;
 
                         for item in remote-versions : Rectangle {
                             visible: kind-filter == 0
                                   || (kind-filter == 1 && item.kind == "release")
                                   || (kind-filter == 2 && item.kind != "release");
-                            height: self.visible ? 44px : 0px;
+                            height: self.visible ? 50px : 0px;
                             clip: true;
 
-                            border-radius: 6px;
-                            background: rem-touch.has-hover ? #ffffff14 : #ffffff08;
-                            border-width: 1px;
-                            border-color: rem-touch.has-hover ? #ffffff28 : #ffffff14;
+                            Rectangle {
+                                y: 0px;
+                                width: 100%;
+                                height: 44px;
+                                border-radius: 6px;
+                                background: rem-touch.has-hover ? #ffffff14 : #ffffff08;
+                                border-width: 1px;
+                                border-color: rem-touch.has-hover ? #ffffff28 : #ffffff14;
 
-                            animate background { duration: 120ms; }
+                                animate background { duration: 120ms; }
 
-                            rem-touch := TouchArea {}
+                                rem-touch := TouchArea {}
 
-                            HorizontalLayout {
-                                padding-left: 12px;
-                                padding-right: 10px;
-                                spacing: 8px;
-
-                                Text {
-                                    text: item.id;
-                                    color: #ffffff;
-                                    font-size: 13px;
-                                    font-weight: 600;
-                                    vertical-alignment: center;
-                                    horizontal-stretch: 1;
-                                    overflow: elide;
-                                }
-
-                                Rectangle {
-                                    width: 68px;
-                                    height: 22px;
-                                    y: (parent.height - self.height) / 2;
-                                    border-radius: 4px;
-                                    background: item.kind == "release" ? #22c55e22 : #f59e0b22;
-                                    border-width: 1px;
-                                    border-color: item.kind == "release" ? #22c55e55 : #f59e0b55;
+                                HorizontalLayout {
+                                    padding-left: 12px;
+                                    padding-right: 10px;
+                                    spacing: 8px;
 
                                     Text {
-                                        text: item.kind;
-                                        color: item.kind == "release" ? #86efac : #fcd34d;
-                                        font-size: 10px;
+                                        text: item.id;
+                                        color: #ffffff;
+                                        font-size: 13px;
                                         font-weight: 600;
-                                        horizontal-alignment: center;
                                         vertical-alignment: center;
+                                        horizontal-stretch: 1;
+                                        overflow: elide;
                                     }
-                                }
 
-                                // Белая кнопка с иконкой скачать
-                                Rectangle {
-                                    width: 32px;
-                                    height: 28px;
-                                    y: (parent.height - self.height) / 2;
-                                    border-radius: 6px;
-                                    background: dl-touch.has-hover ? #e5e7eb : #ffffff;
+                                    Rectangle {
+                                        width: 68px;
+                                        height: 22px;
+                                        y: (parent.height - self.height) / 2;
+                                        border-radius: 4px;
+                                        background: item.kind == "release" ? #22c55e22 : #f59e0b22;
+                                        border-width: 1px;
+                                        border-color: item.kind == "release" ? #22c55e55 : #f59e0b55;
 
-                                    animate background { duration: 120ms; }
-
-                                    dl-touch := TouchArea {
-                                        mouse-cursor: pointer;
-                                        clicked => {
-                                            download-target-version = item.id;
-                                            download-modal-open = true;
+                                        Text {
+                                            text: item.kind;
+                                            color: item.kind == "release" ? #86efac : #fcd34d;
+                                            font-size: 10px;
+                                            font-weight: 600;
+                                            horizontal-alignment: center;
+                                            vertical-alignment: center;
                                         }
                                     }
 
-                                    Image {
-                                        source: @image-url("icons/download.png");
-                                        width: 15px;
-                                        height: 15px;
-                                        x: (parent.width - self.width) / 2;
+                                    // Белая кнопка с иконкой скачать
+                                    Rectangle {
+                                        width: 32px;
+                                        height: 28px;
                                         y: (parent.height - self.height) / 2;
-                                        colorize: #0d1011;
+                                        border-radius: 6px;
+                                        background: dl-touch.has-hover ? #e5e7eb : #ffffff;
+
+                                        animate background { duration: 120ms; }
+
+                                        dl-touch := TouchArea {
+                                            mouse-cursor: pointer;
+                                            clicked => {
+                                                download-target-version = item.id;
+                                                download-modal-open = true;
+                                            }
+                                        }
+
+                                        Image {
+                                            source: @image-url("icons/download.png");
+                                            width: 15px;
+                                            height: 15px;
+                                            x: (parent.width - self.width) / 2;
+                                            y: (parent.height - self.height) / 2;
+                                            colorize: #0d1011;
+                                        }
                                     }
                                 }
                             }
