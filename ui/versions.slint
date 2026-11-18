@@ -74,9 +74,6 @@ export component VersionsTab inherits Rectangle {
 
     // 0 = All, 1 = Release, 2 = Snapshots
     property <int> kind-filter: 0;
-    property <int> page-size: 25;
-    property <int> current-page: 0;
-    property <int> total-pages: max(1, ceil(remote-versions.length / page-size));
 
     property <bool> download-modal-open: false;
     property <string> download-target-version: "";
@@ -220,33 +217,35 @@ export component VersionsTab inherits Rectangle {
                         vertical-alignment: center;
                     }
 
-                    FilterChip { label: "All"; active: kind-filter == 0; clicked => { kind-filter = 0; current-page = 0; } }
-                    FilterChip { label: "Releases"; active: kind-filter == 1; clicked => { kind-filter = 1; current-page = 0; } }
-                    FilterChip { label: "Snapshots"; active: kind-filter == 2; clicked => { kind-filter = 2; current-page = 0; } }
+                    FilterChip { label: "All"; active: kind-filter == 0; clicked => { kind-filter = 0; } }
+                    FilterChip { label: "Releases"; active: kind-filter == 1; clicked => { kind-filter = 1; } }
+                    FilterChip { label: "Snapshots"; active: kind-filter == 2; clicked => { kind-filter = 2; } }
 
                     VerBtn {
                         label: "Refresh";
                         primary: true;
                         min-width: 68px;
-                        clicked => {
-                            current-page = 0;
-                            root.fetch-versions();
-                        }
+                        clicked => { root.fetch-versions(); }
                     }
                 }
 
-                // Поисковик версий
-                LineEdit {
-                    text <=> root.search-query;
-                    placeholder-text: "Search version (e.g. 1.20.4, 24w14a)...";
-                    height: 32px;
-                    edited(q) => {
-                        current-page = 0;
-                        root.search-versions(q);
+                // Поисковик версий (по Enter)
+                HorizontalLayout {
+                    spacing: 8px;
+
+                    search-input := LineEdit {
+                        text <=> root.search-query;
+                        placeholder-text: "Search version (press Enter)...";
+                        height: 32px;
+                        horizontal-stretch: 1;
+                        accepted(q) => { root.search-versions(q); }
                     }
-                    accepted(q) => {
-                        current-page = 0;
-                        root.search-versions(q);
+
+                    VerBtn {
+                        label: "Search";
+                        min-width: 64px;
+                        height: 32px;
+                        clicked => { root.search-versions(search-input.text); }
                     }
                 }
 
@@ -281,12 +280,10 @@ export component VersionsTab inherits Rectangle {
                         spacing: 6px;
                         alignment: start;
 
-                        for item[idx] in remote-versions : Rectangle {
-                            visible: idx >= current-page * page-size
-                                  && idx < (current-page + 1) * page-size
-                                  && (kind-filter == 0
-                                      || (kind-filter == 1 && item.kind == "release")
-                                      || (kind-filter == 2 && item.kind != "release"));
+                        for item in remote-versions : Rectangle {
+                            visible: kind-filter == 0
+                                  || (kind-filter == 1 && item.kind == "release")
+                                  || (kind-filter == 2 && item.kind != "release");
                             height: self.visible ? 44px : 0px;
                             clip: true;
 
@@ -365,56 +362,7 @@ export component VersionsTab inherits Rectangle {
                     }
                 }
 
-                // Пагинация (по 25 версий)
-                if remote-versions.length > page-size : HorizontalLayout {
-                    spacing: 6px;
-                    alignment: center;
-
-                    VerBtn {
-                        label: "First";
-                        min-width: 52px;
-                        clicked => { current-page = 0; }
-                    }
-                    VerBtn {
-                        label: "Prev";
-                        min-width: 52px;
-                        clicked => {
-                            if current-page > 0 { current-page -= 1; }
-                        }
-                    }
-
-                    Rectangle {
-                        height: 28px;
-                        min-width: 86px;
-                        border-radius: 6px;
-                        background: #ffffff0a;
-                        border-width: 1px;
-                        border-color: #ffffff18;
-
-                        Text {
-                            text: (current-page + 1) + " / " + total-pages;
-                            color: #ffffff;
-                            font-size: 11px;
-                            font-weight: 600;
-                            horizontal-alignment: center;
-                            vertical-alignment: center;
-                        }
-                    }
-
-                    VerBtn {
-                        label: "Next";
-                        min-width: 52px;
-                        clicked => {
-                            if current-page + 1 < total-pages { current-page += 1; }
-                        }
-                    }
-                    VerBtn {
-                        label: "Last";
-                        min-width: 52px;
-                        clicked => { current-page = total-pages - 1; }
-                    }
                 }
-            }
         }
     }
 
