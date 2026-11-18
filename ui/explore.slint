@@ -1,0 +1,270 @@
+import { LineEdit, ScrollView } from "std-widgets.slint";
+
+export struct ExploreItem {
+    id: string,
+    title: string,
+    description: string,
+    author: string,
+    downloads: string,
+    kind: string,
+}
+
+component ExpBtn inherits Rectangle {
+    in property <string> label;
+    in property <bool> primary: false;
+    callback clicked();
+
+    height: 28px;
+    min-width: 56px;
+    border-radius: 6px;
+    background: primary ? (touch.has-hover ? #e5e7eb : #ffffff)
+                        : (touch.has-hover ? #ffffff22 : #ffffff12);
+    border-width: 1px;
+    border-color: primary ? #ffffff : #ffffff28;
+
+    animate background { duration: 120ms; }
+
+    touch := TouchArea {
+        mouse-cursor: pointer;
+        clicked => { root.clicked(); }
+    }
+
+    HorizontalLayout {
+        padding-left: 10px;
+        padding-right: 10px;
+
+        Text {
+            text: label;
+            color: primary ? #0d1011 : #ffffff;
+            font-size: 11px;
+            font-weight: 600;
+            horizontal-alignment: center;
+            vertical-alignment: center;
+        }
+    }
+}
+
+component KindChip inherits Rectangle {
+    in property <string> label;
+    in property <bool> active;
+    callback clicked();
+
+    height: 28px;
+    border-radius: 6px;
+    background: active ? #ffffff : (touch.has-hover ? #ffffff18 : #ffffff0a);
+    border-width: 1px;
+    border-color: active ? #ffffff : #ffffff18;
+
+    animate background { duration: 120ms; }
+
+    touch := TouchArea {
+        mouse-cursor: pointer;
+        clicked => { root.clicked(); }
+    }
+
+    HorizontalLayout {
+        padding-left: 12px;
+        padding-right: 12px;
+
+        Text {
+            text: label;
+            color: active ? #0d1011 : #d1d5db;
+            font-size: 12px;
+            font-weight: active ? 700 : 500;
+            vertical-alignment: center;
+        }
+    }
+}
+
+export component ExploreTab inherits Rectangle {
+    in property <[ExploreItem]> items: [];
+    in-out property <string> search-query: "";
+
+    // 0 = Mods, 1 = Resource Packs
+    in-out property <int> kind-filter: 0;
+
+    callback search-explore(string, int);
+    callback download-explore(string, string);
+    callback browse-online();
+
+    vertical-stretch: 1;
+    background: #0d1011cc;
+    border-radius: 10px;
+    border-width: 1px;
+    border-color: #ffffff20;
+
+    VerticalLayout {
+        padding: 16px;
+        spacing: 10px;
+
+        // Шапка: разделение Mods / Resource Packs
+        HorizontalLayout {
+            spacing: 8px;
+
+            Text {
+                text: "Explore";
+                color: #ffffff;
+                font-size: 14px;
+                font-weight: 700;
+                vertical-alignment: center;
+            }
+
+            KindChip {
+                label: "Mods";
+                active: kind-filter == 0;
+                clicked => {
+                    kind-filter = 0;
+                    root.search-explore(search-input.text, 0);
+                }
+            }
+
+            KindChip {
+                label: "Resource Packs";
+                active: kind-filter == 1;
+                clicked => {
+                    kind-filter = 1;
+                    root.search-explore(search-input.text, 1);
+                }
+            }
+
+            Rectangle { horizontal-stretch: 1; }
+
+            ExpBtn {
+                label: "Open Browser";
+                clicked => { root.browse-online(); }
+            }
+        }
+
+        // Поисковик (по Enter)
+        HorizontalLayout {
+            spacing: 8px;
+
+            search-input := LineEdit {
+                text <=> root.search-query;
+                placeholder-text: kind-filter == 0 ? "Search mods online (press Enter)..." : "Search resource packs online (press Enter)...";
+                height: 32px;
+                horizontal-stretch: 1;
+                accepted(q) => { root.search-explore(q, kind-filter); }
+            }
+
+            ExpBtn {
+                label: "Search";
+                primary: true;
+                height: 32px;
+                clicked => { root.search-explore(search-input.text, kind-filter); }
+            }
+        }
+
+        Rectangle { height: 1px; background: #ffffff14; }
+
+        if items.length == 0 : VerticalLayout {
+            vertical-stretch: 1;
+            alignment: center;
+            spacing: 10px;
+
+            Text {
+                text: "Type a name and press Enter to search\nor open Modrinth in browser";
+                color: #9ca3af;
+                font-size: 13px;
+                horizontal-alignment: center;
+            }
+            HorizontalLayout {
+                alignment: center;
+                ExpBtn {
+                    label: "Browse Online";
+                    primary: true;
+                    height: 32px;
+                    clicked => { root.browse-online(); }
+                }
+            }
+        }
+
+        if items.length > 0 : ScrollView {
+            vertical-stretch: 1;
+            VerticalLayout {
+                spacing: 8px;
+                alignment: start;
+
+                for item in items : Rectangle {
+                    height: 64px;
+                    border-radius: 8px;
+                    background: card-touch.has-hover ? #ffffff14 : #ffffff08;
+                    border-width: 1px;
+                    border-color: card-touch.has-hover ? #ffffff28 : #ffffff14;
+
+                    animate background { duration: 120ms; }
+
+                    card-touch := TouchArea {}
+
+                    HorizontalLayout {
+                        padding-left: 14px;
+                        padding-right: 12px;
+                        spacing: 12px;
+
+                        VerticalLayout {
+                            horizontal-stretch: 1;
+                            alignment: center;
+                            spacing: 4px;
+
+                            HorizontalLayout {
+                                spacing: 8px;
+                                Text {
+                                    text: item.title;
+                                    color: #ffffff;
+                                    font-size: 13px;
+                                    font-weight: 700;
+                                    overflow: elide;
+                                }
+                                Text {
+                                    text: "by " + item.author;
+                                    color: #9ca3af;
+                                    font-size: 11px;
+                                    vertical-alignment: center;
+                                }
+                            }
+
+                            Text {
+                                text: item.description;
+                                color: #9ca3af;
+                                font-size: 11px;
+                                overflow: elide;
+                            }
+                        }
+
+                        Text {
+                            text: item.downloads;
+                            color: #d1d5db;
+                            font-size: 11px;
+                            vertical-alignment: center;
+                        }
+
+                        // Белая кнопка с иконкой скачать
+                        Rectangle {
+                            width: 34px;
+                            height: 30px;
+                            y: (parent.height - self.height) / 2;
+                            border-radius: 6px;
+                            background: dl-touch.has-hover ? #e5e7eb : #ffffff;
+
+                            animate background { duration: 120ms; }
+
+                            dl-touch := TouchArea {
+                                mouse-cursor: pointer;
+                                clicked => { root.download-explore(item.id, item.kind); }
+                            }
+
+                            Image {
+                                source: @image-url("icons/download.png");
+                                width: 15px;
+                                height: 15px;
+                                x: (parent.width - self.width) / 2;
+                                y: (parent.height - self.height) / 2;
+                                colorize: #0d1011;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

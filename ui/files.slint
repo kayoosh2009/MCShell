@@ -1,0 +1,338 @@
+import { LineEdit, ScrollView } from "std-widgets.slint";
+
+export struct ModItem {
+    name: string,
+    enabled: bool,
+    index: int,
+}
+
+export struct PackItem {
+    name: string,
+    index: int,
+}
+
+component FileBtn inherits Rectangle {
+    in property <string> label;
+    in property <bool> primary: false;
+    in property <bool> danger: false;
+    callback clicked();
+
+    height: 28px;
+    min-width: 56px;
+    border-radius: 6px;
+    background: danger ? (touch.has-hover ? #7f1d1d : #450a0a)
+              : primary ? (touch.has-hover ? #e5e7eb : #ffffff)
+              : (touch.has-hover ? #ffffff22 : #ffffff12);
+    border-width: 1px;
+    border-color: danger ? #ef4444 : (primary ? #ffffff : #ffffff28);
+
+    animate background { duration: 120ms; }
+
+    touch := TouchArea {
+        mouse-cursor: pointer;
+        clicked => { root.clicked(); }
+    }
+
+    HorizontalLayout {
+        padding-left: 10px;
+        padding-right: 10px;
+
+        Text {
+            text: label;
+            color: primary ? #0d1011 : (danger ? #fca5a5 : #ffffff);
+            font-size: 11px;
+            font-weight: 600;
+            horizontal-alignment: center;
+            vertical-alignment: center;
+        }
+    }
+}
+
+component TabChip inherits Rectangle {
+    in property <string> label;
+    in property <int> count;
+    in property <bool> active;
+    callback clicked();
+
+    height: 28px;
+    border-radius: 6px;
+    background: active ? #ffffff : (touch.has-hover ? #ffffff18 : #ffffff0a);
+    border-width: 1px;
+    border-color: active ? #ffffff : #ffffff18;
+
+    animate background { duration: 120ms; }
+
+    touch := TouchArea {
+        mouse-cursor: pointer;
+        clicked => { root.clicked(); }
+    }
+
+    HorizontalLayout {
+        padding-left: 12px;
+        padding-right: 12px;
+        spacing: 6px;
+
+        Text {
+            text: label;
+            color: active ? #0d1011 : #d1d5db;
+            font-size: 12px;
+            font-weight: active ? 700 : 500;
+            vertical-alignment: center;
+        }
+
+        Text {
+            text: count;
+            color: active ? #0d1011aa : #9ca3af;
+            font-size: 11px;
+            font-weight: 600;
+            vertical-alignment: center;
+        }
+    }
+}
+
+export component FilesTab inherits Rectangle {
+    in property <[ModItem]> mods: [];
+    in property <[PackItem]> packs: [];
+    in-out property <string> search-query: "";
+
+    // 0 = Mods, 1 = Resource Packs
+    property <int> section: 0;
+
+    callback search-files(string);
+    callback toggle-mod(int);
+    callback delete-mod(int);
+    callback open-mods-folder();
+    callback delete-pack(int);
+    callback open-packs-folder();
+    callback open-explore();
+
+    vertical-stretch: 1;
+    background: #0d1011cc;
+    border-radius: 10px;
+    border-width: 1px;
+    border-color: #ffffff20;
+
+    VerticalLayout {
+        padding: 16px;
+        spacing: 10px;
+
+        // Шапка: разделение Mods / Resource Packs + кнопки
+        HorizontalLayout {
+            spacing: 8px;
+
+            Text {
+                text: "Files";
+                color: #ffffff;
+                font-size: 14px;
+                font-weight: 700;
+                vertical-alignment: center;
+            }
+
+            TabChip {
+                label: "Mods";
+                count: mods.length;
+                active: section == 0;
+                clicked => { section = 0; }
+            }
+
+            TabChip {
+                label: "Resource Packs";
+                count: packs.length;
+                active: section == 1;
+                clicked => { section = 1; }
+            }
+
+            Rectangle { horizontal-stretch: 1; }
+
+            FileBtn {
+                label: "Explore";
+                primary: true;
+                clicked => { root.open-explore(); }
+            }
+
+            FileBtn {
+                label: "Open Folder";
+                clicked => {
+                    if section == 0 {
+                        root.open-mods-folder();
+                    } else {
+                        root.open-packs-folder();
+                    }
+                }
+            }
+        }
+
+        // Поиск по файлам (по Enter)
+        HorizontalLayout {
+            spacing: 8px;
+
+            search-input := LineEdit {
+                text <=> root.search-query;
+                placeholder-text: section == 0 ? "Search mods (press Enter)..." : "Search resource packs (press Enter)...";
+                height: 32px;
+                horizontal-stretch: 1;
+                accepted(q) => { root.search-files(q); }
+            }
+
+            FileBtn {
+                label: "Search";
+                height: 32px;
+                clicked => { root.search-files(search-input.text); }
+            }
+        }
+
+        Rectangle { height: 1px; background: #ffffff14; }
+
+        // Раздел Mods
+        if section == 0 && mods.length == 0 : VerticalLayout {
+            vertical-stretch: 1;
+            alignment: center;
+            spacing: 8px;
+
+            Text {
+                text: "No mods found";
+                color: #9ca3af;
+                font-size: 13px;
+                horizontal-alignment: center;
+            }
+            HorizontalLayout {
+                alignment: center;
+                FileBtn {
+                    label: "Open Mods Folder";
+                    clicked => { root.open-mods-folder(); }
+                }
+            }
+        }
+
+        if section == 0 && mods.length > 0 : ScrollView {
+            vertical-stretch: 1;
+            VerticalLayout {
+                spacing: 6px;
+                alignment: start;
+
+                for item in mods : Rectangle {
+                    height: 44px;
+                    border-radius: 6px;
+                    background: mod-touch.has-hover ? #ffffff14 : #ffffff08;
+                    border-width: 1px;
+                    border-color: mod-touch.has-hover ? #ffffff28 : #ffffff14;
+
+                    animate background { duration: 120ms; }
+
+                    mod-touch := TouchArea {
+                        mouse-cursor: pointer;
+                        clicked => { root.toggle-mod(item.index); }
+                    }
+
+                    HorizontalLayout {
+                        padding-left: 12px;
+                        padding-right: 10px;
+                        spacing: 10px;
+
+                        Rectangle {
+                            width: 18px;
+                            height: 18px;
+                            y: (parent.height - self.height) / 2;
+                            border-radius: 4px;
+                            background: item.enabled ? #22c55e : transparent;
+                            border-width: 1.5px;
+                            border-color: item.enabled ? #22c55e : #6e7681;
+
+                            if item.enabled : Text {
+                                text: "✓";
+                                color: #07130b;
+                                font-size: 11px;
+                                font-weight: 800;
+                                horizontal-alignment: center;
+                                vertical-alignment: center;
+                            }
+                        }
+
+                        Text {
+                            text: item.name;
+                            color: item.enabled ? #ffffff : #6b7280;
+                            font-size: 13px;
+                            font-weight: 500;
+                            overflow: elide;
+                            horizontal-stretch: 1;
+                            vertical-alignment: center;
+                        }
+
+                        FileBtn {
+                            label: "×";
+                            danger: true;
+                            min-width: 28px;
+                            y: (parent.height - self.height) / 2;
+                            clicked => { root.delete-mod(item.index); }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Раздел Resource Packs
+        if section == 1 && packs.length == 0 : VerticalLayout {
+            vertical-stretch: 1;
+            alignment: center;
+            spacing: 8px;
+
+            Text {
+                text: "No resource packs found";
+                color: #9ca3af;
+                font-size: 13px;
+                horizontal-alignment: center;
+            }
+            HorizontalLayout {
+                alignment: center;
+                FileBtn {
+                    label: "Open Packs Folder";
+                    clicked => { root.open-packs-folder(); }
+                }
+            }
+        }
+
+        if section == 1 && packs.length > 0 : ScrollView {
+            vertical-stretch: 1;
+            VerticalLayout {
+                spacing: 6px;
+                alignment: start;
+
+                for item in packs : Rectangle {
+                    height: 44px;
+                    border-radius: 6px;
+                    background: pack-touch.has-hover ? #ffffff14 : #ffffff08;
+                    border-width: 1px;
+                    border-color: pack-touch.has-hover ? #ffffff28 : #ffffff14;
+
+                    animate background { duration: 120ms; }
+
+                    pack-touch := TouchArea {}
+
+                    HorizontalLayout {
+                        padding-left: 12px;
+                        padding-right: 10px;
+                        spacing: 10px;
+
+                        Text {
+                            text: item.name;
+                            color: #ffffff;
+                            font-size: 13px;
+                            font-weight: 500;
+                            overflow: elide;
+                            horizontal-stretch: 1;
+                            vertical-alignment: center;
+                        }
+
+                        FileBtn {
+                            label: "×";
+                            danger: true;
+                            min-width: 28px;
+                            y: (parent.height - self.height) / 2;
+                            clicked => { root.delete-pack(item.index); }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
