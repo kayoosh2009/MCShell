@@ -80,10 +80,11 @@ fn sync_ui(win: &MainWindow, app: &App) {
         }
     }
 
+    let query = win.get_version_search().trim().to_lowercase();
     let remote: Vec<VersionItem> = app
         .remote_versions
         .iter()
-        .take(50)
+        .filter(|v| query.is_empty() || v.id.to_lowercase().contains(&query))
         .map(|v| VersionItem {
             id: SharedString::from(v.id.as_str()),
             kind: SharedString::from(v.kind.as_str()),
@@ -219,6 +220,30 @@ pub fn run() -> Result<()> {
     }
 
     win.on_fetch_versions(bind(Box::new(|a| a.fetch_remote_versions())));
+
+    {
+        let app = Rc::clone(&app);
+        let weak = win.as_weak();
+        win.on_search_versions(move |q| {
+            let a = app.borrow();
+            if let Some(w) = weak.upgrade() {
+                w.set_version_search(q);
+                sync_ui(&w, &a);
+            }
+        });
+    }
+
+    {
+        let app = Rc::clone(&app);
+        let weak = win.as_weak();
+        win.on_install_forge(move |id| {
+            let mut a = app.borrow_mut();
+            a.status = format!("forge for {id}: not implemented yet");
+            if let Some(w) = weak.upgrade() {
+                sync_ui(&w, &a);
+            }
+        });
+    }
 
     {
         let app = Rc::clone(&app);

@@ -186,6 +186,7 @@ export component MainWindow inherits Window {
     // Versions & Launch
     in property <[string]> installed-versions: [];
     in property <[VersionItem]> remote-versions: [];
+    in-out property <string> version-search: "";
 
     // Content lists
     in property <[ModItem]> mods: [];
